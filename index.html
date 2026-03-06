@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AquaControl IoT Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; text-align: center; padding: 20px; }
+        .card { background: white; border-radius: 15px; padding: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); max-width: 400px; margin: 20px auto; }
+        .status { font-size: 24px; font-weight: bold; color: #007bff; margin: 10px 0; }
+        button { background: #28a745; color: white; border: none; padding: 15px 30px; border-radius: 10px; font-size: 18px; cursor: pointer; transition: 0.3s; }
+        button:active { transform: scale(0.95); }
+        .off { background: #dc3545; }
+        .info { font-size: 12px; color: gray; margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+    <h1>🌊 AquaControl v1.0</h1>
+    
+    <div class="card">
+        <h3>Biztonsági állapot</h3>
+        <div id="motion-display" class="status">Várakozás adatra...</div>
+        <p id="uptime-display">Uptime: -</p>
+    </div>
+
+    <div class="card">
+        <h3>Vezérlés</h3>
+        <button onclick="sendControl('1')">LED BE</button>
+        <button class="off" onclick="sendControl('0')">LED KI</button>
+    </div>
+
+    <div class="info" id="log">Csatlakozás a HiveMQ-hoz...</div>
+
+    <script>
+        // --- HIVE MQ BEÁLLÍTÁSOK ---
+        // A WebSocket URL-t kell használnunk (port 8884 a TLS-hez a böngészőben)
+        const host = 'wss://4769a5772b894e1ea634b4eff4b1c6cd.s1.eu.hivemq.cloud:8884/mqtt';
+        const options = {
+            keepalive: 60,
+            clientId: 'WebDashboard_' + Math.random().toString(16).substr(2, 8),
+            protocolId: 'MQTT',
+            protocolVersion: 4,
+            clean: true,
+            reconnectPeriod: 1000,
+            connectTimeout: 30 * 1000,
+            username: 'akva_admin', // Ugyanaz, mint a WeMos-nál
+            password: 'Akvajelszo123456'        // Ugyanaz, mint a WeMos-nál
+        };
+
+        const client = mqtt.connect(host, options);
+
+        client.on('connect', () => {
+            document.getElementById('log').innerText = "Online - Csatlakozva a felhőhöz";
+            client.subscribe('aquarium/security');
+            client.subscribe('aquarium/status');
+        });
+
+        client.on('message', (topic, message) => {
+            const msgStr = message.toString();
+            console.log("Érkezett:", topic, msgStr);
+
+            if (topic === 'aquarium/security' || topic === 'aquarium/status') {
+                try {
+                    const data = JSON.parse(msgStr);
+                    if (data.motion !== undefined) {
+                        document.getElementById('motion-display').innerText = 
+                            data.motion === 1 ? "⚠️ MOZGÁS!" : "✅ Csendes";
+                        document.getElementById('motion-display').style.color = 
+                            data.motion === 1 ? "#dc3545" : "#28a745";
+                    }
+                    if (data.uptime !== undefined) {
+                        document.getElementById('uptime-display').innerText = "Uptime: " + data.uptime + " mp";
+                    }
+                } catch(e) {
+                    // Ha nem JSON érkezik, csak írjuk ki nyersen
+                    document.getElementById('motion-display').innerText = msgStr;
+                }
+            }
+        });
+
+        function sendControl(val) {
+            client.publish('aquarium/led', val);
+            document.getElementById('log').innerText = "Parancs elküldve: " + val;
+        }
+
+        client.on('error', (err) => {
+            console.error('Hiba:', err);
+            document.getElementById('log').innerText = "Hiba a csatlakozáskor!";
+        });
+    </script>
+</body>
+</html>
