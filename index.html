@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AquaControl Pro Dashboard</title>
+    <title>AquaControl Pro Dashboard v0.9</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
     <style>
-        :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --warning: #ffc107; --bg: #f4f7f9; --accent: #e83e8c; }
+        :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --warning: #ffc107; --bg: #f4f7f9; --accent: #e83e8c; --check: #17a2b8; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #333; }
         .container { max-width: 600px; margin: 0 auto; }
         h1 { color: #2c3e50; margin-bottom: 20px; text-align: center; }
@@ -21,9 +21,14 @@
         .btn-off { background: var(--danger); }
         .btn-main { background: var(--primary); width: 100%; margin-top: 10px; }
         .btn-action { background: var(--accent); width: 100%; margin-top: 8px; border: 2px solid rgba(0,0,0,0.1); }
+        .btn-check { background: var(--check); width: 100%; margin-top: 12px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        
         button:disabled { background: #ccc; cursor: not-allowed; }
         button:hover:not(:disabled) { opacity: 0.8; transform: translateY(-1px); }
         
+        .status-box { padding: 10px; border-radius: 8px; background: #f8f9fa; margin-bottom: 10px; border-left: 5px solid #ccc; transition: 0.3s; }
+        .status-led { font-size: 14px; font-weight: 600; }
+
         /* Modal & Hal lista */
         #fish-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; }
         .modal-content { background: white; width: 90%; max-width: 500px; margin: 40px auto; border-radius: 15px; max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; }
@@ -44,7 +49,7 @@
 <body>
 
 <div class="container">
-    <h1>🌊 AquaControl Pro v0.2</h1>
+    <h1>🌊 AquaControl Pro v0.1</h1>
 
     <div class="card">
         <h3>Hőmérséklet Kontroll</h3>
@@ -57,20 +62,23 @@
     </div>
 
     <div class="card">
-        <h3>Vízminőség (Node A)</h3>
-        <div id="ph-val" class="value">-- pH</div>
-    </div>
-
-    <div class="card">
         <h3>Világítás (Node B)</h3>
-        <div id="status-led1" style="font-size: 14px; margin-bottom: 5px; font-weight: 600;">Lámpa 1: Ismeretlen</div>
-        <div id="status-led2" style="font-size: 14px; margin-bottom: 10px; font-weight: 600;">Lámpa 2: Ismeretlen</div>
+        
+        <div id="box-led1" class="status-box">
+            <div id="status-led1" class="status-led">Lámpa 1: Ismeretlen</div>
+        </div>
+        <div id="box-led2" class="status-box">
+            <div id="status-led2" class="status-led">Lámpa 2: Ismeretlen</div>
+        </div>
+
         <div class="grid">
             <button class="btn-on" onclick="send('aquarium/control', '1')">1. BE</button>
             <button class="btn-off" onclick="send('aquarium/control', '0')">1. KI</button>
             <button class="btn-on" onclick="send('aquarium/control', '2')">2. BE</button>
             <button class="btn-off" onclick="send('aquarium/control', '3')">2. KI</button>
         </div>
+
+        <button class="btn-check" onclick="send('aquarium/request', 'CHECK')">🔍 Állapot ellenőrzése</button>
     </div>
 
     <div class="card">
@@ -98,14 +106,13 @@
 <script>
     let currentCalculatedSetpoint = null;
 
+    // Haladatok feltöltése (részlet a CSV-ből)
     const fishData = [
         {name: "Neon tetra", min: 20, max: 26}, {name: "Cardinal tetra", min: 24, max: 28},
         {name: "Guppy", min: 22, max: 28}, {name: "Platy", min: 20, max: 26},
         {name: "Swordtail", min: 22, max: 28}, {name: "Molly", min: 24, max: 28},
-        {name: "Zebra danio", min: 18, max: 24}, {name: "Pearl danio", min: 20, max: 25},
-        {name: "Harlequin rasbora", min: 23, max: 28}, {name: "Goldfish", min: 18, max: 22},
-        {name: "Betta splendens", min: 24, max: 28}, {name: "Angelfish", min: 24, max: 28},
-        {name: "Discus", min: 28, max: 31}, {name: "Killifish", min: 22, max: 26}
+        {name: "Zebra danio", min: 18, max: 24}, {name: "Betta splendens", min: 24, max: 28},
+        {name: "Angelfish", min: 24, max: 28}, {name: "Discus", min: 28, max: 31}
     ];
 
     const host = 'wss://4769a5772b894e1ea634b4eff4b1c6cd.s1.eu.hivemq.cloud:8884/mqtt';
@@ -114,10 +121,25 @@
         username: 'akva_admin', password: 'Akva123456'
     });
 
-    client.on('connect', () => { updateLog("Online"); client.subscribe('aquarium/#'); });
+    client.on('connect', () => { 
+        updateLog("Online"); 
+        client.subscribe('aquarium/#');
+        // Belépéskor azonnal lekérdezzük az állapotot
+        setTimeout(() => send('aquarium/request', 'CHECK'), 1000);
+    });
 
     client.on('message', (topic, message) => {
         const msg = message.toString();
+        
+        // STÁTUSZ JELENTÉSEK KEZELÉSE
+        if (topic === 'aquarium/status/led1') {
+            updateStatusDisplay('led1', msg);
+        }
+        if (topic === 'aquarium/status/led2') {
+            updateStatusDisplay('led2', msg);
+        }
+
+        // Szenzor adatok
         if (topic === 'aquarium/sensor/data') {
             try {
                 const data = JSON.parse(msg);
@@ -127,6 +149,38 @@
         }
     });
 
+    function updateStatusDisplay(ledId, state) {
+        const textEl = document.getElementById('status-' + ledId);
+        const boxEl = document.getElementById('box-' + ledId);
+        const label = ledId === 'led1' ? 'Lámpa 1' : 'Lámpa 2';
+
+        if (state === "1") {
+            textEl.innerText = label + ": BEKAPCSOLVA (Áram alatt)";
+            boxEl.style.borderLeftColor = "var(--success)";
+            textEl.style.color = "var(--success)";
+        } else {
+            textEl.innerText = label + ": KIKAPCSOLVA (Nincs áram)";
+            boxEl.style.borderLeftColor = "var(--danger)";
+            textEl.style.color = "var(--danger)";
+        }
+    }
+
+    // MQTT küldés
+    function send(topic, value) {
+        client.publish(topic, value);
+        updateLog("Küldve: " + value + " -> " + topic);
+    }
+
+    function applyTemperature() {
+        if (currentCalculatedSetpoint) {
+            send('aquarium/setpoint', currentCalculatedSetpoint);
+            document.getElementById('btn-set-temp').disabled = true;
+        }
+    }
+
+    function updateLog(txt) { document.getElementById('log').innerText = new Date().toLocaleTimeString() + ": " + txt; }
+
+    // MODAL KEZELÉS (Halválasztó)
     function openModal() {
         const container = document.getElementById('fish-list-container');
         container.innerHTML = fishData.sort((a,b) => a.name.localeCompare(b.name)).map(f => `
@@ -150,49 +204,29 @@
     function processSelection() {
         const selected = Array.from(document.querySelectorAll('.fish-chk:checked'));
         if (selected.length === 0) { closeModal(); return; }
-
-        let cMin = -Infinity; let cMax = Infinity;
+        let cMin = -Infinity, cMax = Infinity;
         selected.forEach(chk => {
-            const min = parseFloat(chk.dataset.min); const max = parseFloat(chk.dataset.max);
+            const min = parseFloat(chk.dataset.min), max = parseFloat(chk.dataset.max);
             if (min > cMin) cMin = min; if (max < cMax) cMax = max;
         });
-
-        const resultBox = document.getElementById('result-box');
+        const res = document.getElementById('result-box');
         const idealText = document.getElementById('ideal-temp-val');
         const applyBtn = document.getElementById('btn-set-temp');
-        resultBox.style.display = 'block';
-
+        res.style.display = 'block';
         if (cMin > cMax) {
-            resultBox.className = 'alert-warning';
-            resultBox.innerHTML = `⚠️ <strong>Hiba!</strong> A halak hőigénye nem összeegyeztethető!`;
+            res.className = 'alert-warning';
+            res.innerHTML = `⚠️ Hiba! Nem összeegyeztethető igények!`;
             idealText.innerText = "";
             applyBtn.disabled = true;
-            currentCalculatedSetpoint = null;
         } else {
             currentCalculatedSetpoint = ((cMin + cMax) / 2).toFixed(1);
-            resultBox.className = 'alert-success';
-            resultBox.innerHTML = `✅ <strong>Kalkuláció kész!</strong> Tartomány: ${cMin}-${cMax}°C.`;
+            res.className = 'alert-success';
+            res.innerHTML = `✅ Kalkuláció kész! Tartomány: ${cMin}-${cMax}°C.`;
             idealText.innerText = `Számolt ideális hőfok: ${currentCalculatedSetpoint} °C`;
-            applyBtn.disabled = false; // Aktiváljuk a beküldő gombot
+            applyBtn.disabled = false;
         }
         closeModal();
     }
-
-    // EZ A FÜGGVÉNY KÜLDI EL A GERINCNEK
-    function applyTemperature() {
-        if (currentCalculatedSetpoint) {
-            send('aquarium/setpoint', currentCalculatedSetpoint);
-            alert("Parancs elküldve a Gerincnek: " + currentCalculatedSetpoint + " °C");
-            document.getElementById('btn-set-temp').disabled = true; // Megelőzzük a dupla küldést
-        }
-    }
-
-    function send(topic, value) {
-        client.publish(topic, value);
-        updateLog("Küldve: " + value + " -> " + topic);
-    }
-
-    function updateLog(txt) { document.getElementById('log').innerText = new Date().toLocaleTimeString() + ": " + txt; }
 </script>
 </body>
 </html>
