@@ -29,7 +29,7 @@
 <body>
 
 <div class="container">
-    <h1>🌊 AquaControl Pro v0.1</h1>
+    <h1>🌊 AquaControl Pro v0.2</h1>
 
     <div class="card">
         <h3>Vízminőség (Node A)</h3>
@@ -40,6 +40,7 @@
     <div class="card">
         <h3>Világítás (Node B)</h3>
         <div id="status-led1" style="margin-bottom: 10px;">Állapot: Ismeretlen</div>
+		<div id="status-led2" style="margin-bottom: 10px;">Állapot: Ismeretlen</div>
         <div class="grid">
             <button class="btn-on" onclick="send('aquarium/control', '1')">1BE</button>
             <button class="btn-off" onclick="send('aquarium/control', '0')">1KI</button>
@@ -88,8 +89,14 @@
 
         // VISSZAJELZÉS A VEZÉRLÉSRŐL
         if (topic === 'aquarium/control') {
-            document.getElementById('status-led1').innerText = "Állapot: " + (msg === "1" ? "Bekapcsolva" : "Kikapcsolva");
-			document.getElementById('status-led2').innerText = "Állapot: " + (msg === "2" ? "Bekapcsolva" : "Kikapcsolva");
+		
+			if (msg === "0" || msg === "1") {
+				document.getElementById('status-led1').innerText = "Állapot: " + (msg === "1" ? "Bekapcsolva" : "Kikapcsolva");
+			} 
+
+			else if (msg === "2" || msg === "3") {
+				document.getElementById('status-led2').innerText = "Állapot2: " + (msg === "3" ? "Aktív" : "Inaktív");
+			}
         }
     });
 
