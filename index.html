@@ -39,7 +39,8 @@
 
     <div class="card">
         <h3>Világítás (Node B)</h3>
-        <div id="status-led1" style="margin-bottom: 10px;">Állapot: Ismeretlen</div>
+        <div id="status-led1" style="margin-bottom: 10px;">LED1 állapot: Ismeretlen</div>
+		<div id="status-led2" style="margin-bottom: 10px;">LED2 állapot: Ismeretlen</div>
         <div class="grid">
             <button class="btn-on" onclick="send('aquarium/control', '1')">1BE</button>
             <button class="btn-off" onclick="send('aquarium/control', '0')">1KI</button>
@@ -89,6 +90,7 @@
         // VISSZAJELZÉS A VEZÉRLÉSRŐL
         if (topic === 'aquarium/control') {
             document.getElementById('status-led1').innerText = "Állapot: " + (msg === "1" ? "Bekapcsolva" : "Kikapcsolva");
+			document.getElementById('status-led2').innerText = "Állapot: " + (msg === "2" ? "Bekapcsolva" : "Kikapcsolva");
         }
     });
 
@@ -105,3 +107,4 @@
 
 </body>
 </html>
+
