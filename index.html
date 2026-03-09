@@ -3,81 +3,103 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AquaControl Dashboard</title>
+    <title>AquaControl Pro Dashboard</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
     <style>
-        body { font-family: sans-serif; background: #f0f2f5; text-align: center; padding: 20px; }
-        .card { background: white; border-radius: 15px; padding: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); max-width: 400px; margin: 10px auto; }
-        .status { font-size: 22px; font-weight: bold; color: #007bff; }
-        button { background: #28a745; color: white; border: none; padding: 15px 30px; border-radius: 10px; cursor: pointer; margin: 5px; }
-        .off { background: #dc3545; }
+        :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --bg: #f4f7f9; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; }
+        h1 { color: #2c3e50; margin-bottom: 30px; }
+        
+        /* Kártya stílus - könnyen másolható */
+        .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); text-align: left; }
+        .card h3 { margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; color: #7f8c8d; }
+        .value { font-size: 28px; font-weight: bold; color: var(--primary); }
+        
+        /* Gombok elrendezése */
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+        button { border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; color: white; }
+        .btn-on { background: var(--success); }
+        .btn-off { background: var(--danger); }
+        button:hover { opacity: 0.8; transform: translateY(-1px); }
+        
+        #log { font-size: 11px; color: #95a5a6; margin-top: 20px; font-family: monospace; }
     </style>
 </head>
 <body>
-    <h1>🌊 AquaControl v1.1</h1>
-    
+
+<div class="container">
+    <h1>🌊 AquaControl Pro</h1>
+
     <div class="card">
-        <h3>Szenzor Adatok (Node A)</h3>
-        <div id="ph-display" class="status">Várakozás...</div>
+        <h3>Vízminőség (Node A)</h3>
+        <div id="ph-val" class="value">-- pH</div>
+        <div id="temp-val" class="value" style="font-size: 18px; color: #e67e22;">-- °C</div>
     </div>
 
     <div class="card">
-        <h3>Beavatkozó Állapot (Node B)</h3>
-        <div id="actuator-display" class="status">Ismeretlen</div>
+        <h3>Világítás (Node B)</h3>
+        <div id="status-led1" style="margin-bottom: 10px;">Állapot: Ismeretlen</div>
+        <div class="grid">
+            <button class="btn-on" onclick="send('aquarium/control', '1')">BE</button>
+            <button class="btn-off" onclick="send('aquarium/control', '0')">KI</button>
+        </div>
     </div>
 
     <div class="card">
-        <h3>Vezérlés</h3>
-        <button onclick="sendControl('1')">LED BE</button>
-        <button class="off" onclick="sendControl('0')">LED KI</button>
+        <h3>Haletető Automata</h3>
+        <div class="grid">
+            <button style="background: var(--primary); grid-column: span 2;" onclick="send('aquarium/feeder', 'START')">Etetés indítása</button>
+        </div>
     </div>
 
-    <p id="log" style="font-size: 12px; color: gray;">Csatlakozás...</p>
+    <div id="log">Csatlakozás folyamatban...</div>
+</div>
 
-    <script>
-        const host = 'wss://4769a5772b894e1ea634b4eff4b1c6cd.s1.eu.hivemq.cloud:8884/mqtt';
-        const options = {
-            clientId: 'WebDash_' + Math.random().toString(16).substr(2, 5),
-            username: 'akva_admin', 
-            password: 'Akva123456'
-        };
+<script>
+    const host = 'wss://4769a5772b894e1ea634b4eff4b1c6cd.s1.eu.hivemq.cloud:8884/mqtt';
+    const options = {
+        clientId: 'WebDash_' + Math.random().toString(16).substr(2, 5),
+        username: 'akva_admin', 
+        password: 'Akva123456'
+    };
 
-        const client = mqtt.connect(host, options);
+    const client = mqtt.connect(host, options);
 
-        client.on('connect', () => {
-            document.getElementById('log').innerText = "Online";
-            // Erre a háromra iratkozunk fel, hogy lássunk mindent
-            client.subscribe('aquarium/sensor/data');
-            client.subscribe('aquarium/status');
-        });
+    client.on('connect', () => {
+        updateLog("Online - HiveMQ kapcsolat OK");
+        client.subscribe('aquarium/#'); // Mindenre feliratkozik, ami 'aquarium/' -al kezdődik
+    });
 
-        client.on('message', (topic, message) => {
-            const msgStr = message.toString();
-            console.log("Érkezett:", topic, msgStr);
+    client.on('message', (topic, message) => {
+        const msg = message.toString();
+        console.log("Bejövő:", topic, msg);
 
+        // SZENZOR ADATOK FELDOLGOZÁSA
+        if (topic === 'aquarium/sensor/data') {
             try {
-                const data = JSON.parse(msgStr);
-                
-                // Ha a Szenzor Node küld adatot (ph)
-                if (data.ph !== undefined) {
-                    document.getElementById('ph-display').innerText = "Nyers pH (A0): " + data.ph;
-                }
-                
-                // Ha a Gerinc küld összesített állapotot (actuator)
-                if (data.actuator !== undefined) {
-                    document.getElementById('actuator-display').innerText = 
-                        data.actuator === 1 ? "💡 Világítás BE" : "🌑 Világítás KI";
-                }
-            } catch(e) {
-                // Ha nem JSON jön, de látni akarjuk
-                document.getElementById('log').innerText = "Nyers üzenet: " + msgStr;
-            }
-        });
-
-        function sendControl(val) {
-            client.publish('aquarium/control', val);
-            document.getElementById('log').innerText = "Parancs küldve: " + val;
+                const data = JSON.parse(msg);
+                if(data.ph) document.getElementById('ph-val').innerText = data.ph + " pH";
+                if(data.temp) document.getElementById('temp-val').innerText = data.temp + " °C";
+            } catch(e) { /* Nem JSON adat */ }
         }
-    </script>
+
+        // VISSZAJELZÉS A VEZÉRLÉSRŐL
+        if (topic === 'aquarium/control') {
+            document.getElementById('status-led1').innerText = "Állapot: " + (msg === "1" ? "Bekapcsolva" : "Kikapcsolva");
+        }
+    });
+
+    // Univerzális küldő függvény
+    function send(topic, value) {
+        client.publish(topic, value);
+        updateLog("Küldve: " + value + " -> " + topic);
+    }
+
+    function updateLog(txt) {
+        document.getElementById('log').innerText = new Date().toLocaleTimeString() + ": " + txt;
+    }
+</script>
+
 </body>
 </html>
