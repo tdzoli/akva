@@ -81,7 +81,7 @@
         });
 
         function sendControl(val) {
-            client.publish('aquarium/led', val);
+            client.publish('aquarium/control', val);
             document.getElementById('log').innerText = "Parancs elküldve: " + val;
         }
 
@@ -93,3 +93,4 @@
 </body>
 
 </html>
+
