@@ -29,7 +29,7 @@
 <body>
 
 <div class="container">
-    <h1>🌊 AquaControl Pro v0.3</h1>
+    <h1>🌊 AquaControl Pro v0.1</h1>
 
     <div class="card">
         <h3>Vízminőség (Node A)</h3>
@@ -39,8 +39,7 @@
 
     <div class="card">
         <h3>Világítás (Node B)</h3>
-        <div id="status-led1" style="margin-bottom: 10px;">LED1 állapot: Ismeretlen</div>
-		<div id="status-led2" style="margin-bottom: 10px;">LED2 állapot: Ismeretlen</div>
+        <div id="status-led1" style="margin-bottom: 10px;">Állapot: Ismeretlen</div>
         <div class="grid">
             <button class="btn-on" onclick="send('aquarium/control', '1')">1BE</button>
             <button class="btn-off" onclick="send('aquarium/control', '0')">1KI</button>
@@ -89,18 +88,8 @@
 
         // VISSZAJELZÉS A VEZÉRLÉSRŐL
         if (topic === 'aquarium/control') {
-			if (msg == "1") {
-            document.getElementById('status-led1').innerText = "Állapot: Bekapcsolva");
-			}
-			if (msg == "0") {	
-            document.getElementById('status-led1').innerText = "Állapot: Kikapcsolva");
-			}
-			if (msg == "2") {
-            document.getElementById('status-led2').innerText = "Állapot: Bekapcsolva");
-			}
-			if (msg == "3") {	
-            document.getElementById('status-led2').innerText = "Állapot: Kikapcsolva");
-			}
+            document.getElementById('status-led1').innerText = "Állapot: " + (msg === "1" ? "Bekapcsolva" : "Kikapcsolva");
+			document.getElementById('status-led2').innerText = "Állapot: " + (msg === "2" ? "Bekapcsolva" : "Kikapcsolva");
         }
     });
 
@@ -117,11 +106,3 @@
 
 </body>
 </html>
-
-
-
-
-
-
-
-
