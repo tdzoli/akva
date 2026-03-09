@@ -11,25 +11,46 @@
         .container { max-width: 600px; margin: 0 auto; }
         h1 { color: #2c3e50; margin-bottom: 20px; text-align: center; }
         
+        /* Kártya stílus */
         .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-        .card h3 { margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; color: #7f8c8d; }
+        .card h3 { margin: 0 0 10px 0; font-size: 13px; text-transform: uppercase; color: #7f8c8d; letter-spacing: 1px; }
         .value { font-size: 28px; font-weight: bold; color: var(--primary); }
         
+        /* Gombok */
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
-        button { border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; color: white; }
+        button { border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; color: white; font-size: 14px; }
         .btn-on { background: var(--success); }
         .btn-off { background: var(--danger); }
         .btn-main { background: var(--primary); width: 100%; margin-top: 10px; }
         button:hover { opacity: 0.8; transform: translateY(-1px); }
         
-        /* Modal & Hal lista */
+        /* MODAL STRUKTÚRA */
         #fish-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; }
-        .modal-content { background: white; width: 90%; max-width: 500px; margin: 50px auto; padding: 25px; border-radius: 15px; max-height: 80vh; overflow-y: auto; position: relative; }
-        .search-box { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
-        .fish-item { display: flex; align-items: center; padding: 8px; border-bottom: 1px solid #eee; }
-        .fish-item input { margin-right: 12px; width: 18px; height: 18px; }
         
-        #result-box { margin-top: 15px; padding: 12px; border-radius: 8px; display: none; font-size: 14px; }
+        .modal-content { 
+            background: white; width: 90%; max-width: 500px; margin: 40px auto; border-radius: 15px; 
+            max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .modal-header { padding: 20px; border-bottom: 1px solid #eee; background: #fff; }
+        .modal-header h2 { margin: 0 0 15px 0; font-size: 20px; }
+
+        .search-box { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+
+        #fish-list-container { padding: 10px 20px; overflow-y: auto; flex-grow: 1; background: #fff; }
+
+        /* LEBEGŐ LÁBLÉC */
+        .modal-footer { 
+            padding: 15px 20px; background: #f8f9fa; border-top: 1px solid #eee; 
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px; position: sticky; bottom: 0; 
+        }
+
+        .fish-item { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+        .fish-item input { margin-right: 15px; width: 20px; height: 20px; cursor: pointer; }
+        .fish-item span { font-size: 15px; }
+
+        /* Értesítő dobozok */
+        #result-box { margin-top: 15px; padding: 15px; border-radius: 8px; display: none; font-size: 14px; line-height: 1.5; }
         .alert-warning { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
         .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
         
@@ -39,12 +60,12 @@
 <body>
 
 <div class="container">
-    <h1>🌊 AquaControl Pro v0.5</h1>
+    <h1>🌊 AquaControl Pro v0.1</h1>
 
     <div class="card">
-        <h3>Hőmérséklet & Halak</h3>
+        <h3>Hőmérséklet Kontroll</h3>
         <div id="temp-val" class="value">-- °C</div>
-        <div id="ideal-temp-val" style="color: var(--success); font-weight: bold; margin-top: 5px;"></div>
+        <div id="ideal-temp-val" style="color: var(--success); font-weight: bold; margin-top: 5px; font-size: 18px;"></div>
         <div id="result-box"></div>
         <button class="btn-main" onclick="openModal()">🐟 Halak Kiválasztása</button>
     </div>
@@ -56,8 +77,8 @@
 
     <div class="card">
         <h3>Világítás (Node B)</h3>
-        <div id="status-led1" style="font-size: 14px; margin-bottom: 5px;">1. Állapot: Ismeretlen</div>
-        <div id="status-led2" style="font-size: 14px; margin-bottom: 10px;">2. Állapot: Ismeretlen</div>
+        <div id="status-led1" style="font-size: 14px; margin-bottom: 5px; font-weight: 600;">Lámpa 1: Ismeretlen</div>
+        <div id="status-led2" style="font-size: 14px; margin-bottom: 10px; font-weight: 600;">Lámpa 2: Ismeretlen</div>
         <div class="grid">
             <button class="btn-on" onclick="send('aquarium/control', '1')">1. BE</button>
             <button class="btn-off" onclick="send('aquarium/control', '0')">1. KI</button>
@@ -68,7 +89,7 @@
 
     <div class="card">
         <h3>Haletető Automata</h3>
-        <button class="btn-main" onclick="send('aquarium/control', '4')">Etetés indítása</button>
+        <button class="btn-main" style="background: #6f42c1;" onclick="send('aquarium/control', '4')">Etetés indítása</button>
     </div>
 
     <div id="log">Csatlakozás folyamatban...</div>
@@ -76,29 +97,43 @@
 
 <div id="fish-modal">
     <div class="modal-content">
-        <h2>🐟 Halfajok</h2>
-        <input type="text" id="fishSearch" class="search-box" placeholder="Keresés..." onkeyup="filterFish()">
-        <div id="fish-list-container"></div>
-        <div class="grid">
+        <div class="modal-header">
+            <h2>🐟 Halak kiválasztása</h2>
+            <input type="text" id="fishSearch" class="search-box" placeholder="Keresés név alapján..." onkeyup="filterFish()">
+        </div>
+
+        <div id="fish-list-container">
+            </div>
+
+        <div class="modal-footer">
             <button class="btn-off" onclick="closeModal()">Mégse</button>
-            <button class="btn-on" onclick="processSelection()">Mentés</button>
+            <button class="btn-on" onclick="processSelection()">Mentés és Küldés</button>
         </div>
     </div>
 </div>
 
 <script>
-    // CSV-ből importált adatok (részlet a 100-as listából)
+    // A teljes hal-lista a CSV alapján
     const fishData = [
         {name: "Neon tetra", min: 20, max: 26}, {name: "Cardinal tetra", min: 24, max: 28},
         {name: "Guppy", min: 22, max: 28}, {name: "Platy", min: 20, max: 26},
         {name: "Swordtail", min: 22, max: 28}, {name: "Molly", min: 24, max: 28},
-        {name: "Zebra danio", min: 18, max: 24}, {name: "Goldfish", min: 18, max: 22},
-        {name: "Betta splendens", min: 24, max: 28}, {name: "Angelfish", min: 24, max: 28},
-        {name: "Discus", min: 28, max: 31}, {name: "Corydoras", min: 22, max: 26},
-        {name: "Bristlenose pleco", min: 22, max: 27}, {name: "Harlequin rasbora", min: 23, max: 28},
+        {name: "Zebra danio", min: 18, max: 24}, {name: "Pearl danio", min: 20, max: 25},
+        {name: "Harlequin rasbora", min: 23, max: 28}, {name: "Scissortail rasbora", min: 24, max: 28},
+        {name: "Goldfish", min: 18, max: 22}, {name: "Betta splendens", min: 24, max: 28},
+        {name: "Angelfish", min: 24, max: 28}, {name: "Discus", min: 28, max: 31},
+        {name: "Dwarf gourami", min: 24, max: 28}, {name: "Honey gourami", min: 24, max: 28},
+        {name: "Blue gourami", min: 22, max: 28}, {name: "Chocolate gourami", min: 25, max: 28},
+        {name: "Panda corydoras", min: 20, max: 25}, {name: "Bristlenose pleco", min: 22, max: 27},
+        {name: "Tiger barb", min: 23, max: 27}, {name: "Cherry barb", min: 23, max: 27},
+        {name: "Kuhli loach", min: 24, max: 30}, {name: "Clown loach", min: 25, max: 30},
         {name: "Rummy nose tetra", min: 25, max: 28}, {name: "Ember tetra", min: 23, max: 29},
-        {name: "Paradise fish", min: 20, max: 24}, {name: "White cloud", min: 18, max: 22}
-        // ... itt bővíthető tovább a CSV alapján
+        {name: "Black phantom tetra", min: 23, max: 28}, {name: "Glowlight tetra", min: 22, max: 26},
+        {name: "Paradise fish", min: 20, max: 24}, {name: "White cloud", min: 18, max: 22},
+        {name: "Silver arowana", min: 24, max: 30}, {name: "Elephantnose fish", min: 26, max: 28},
+        {name: "Glass catfish", min: 23, max: 27}, {name: "Endler guppy", min: 22, max: 28},
+        {name: "Killifish", min: 22, max: 26}, {name: "Bala shark", min: 24, max: 28}
+        // ... (folytatható a CSV többi elemével)
     ];
 
     const host = 'wss://4769a5772b894e1ea634b4eff4b1c6cd.s1.eu.hivemq.cloud:8884/mqtt';
@@ -107,7 +142,10 @@
         username: 'akva_admin', password: 'Akva123456'
     });
 
-    client.on('connect', () => { updateLog("Online - HiveMQ OK"); client.subscribe('aquarium/#'); });
+    client.on('connect', () => { 
+        updateLog("Online - Felhő csatlakozva"); 
+        client.subscribe('aquarium/#'); 
+    });
 
     client.on('message', (topic, message) => {
         const msg = message.toString();
@@ -119,25 +157,27 @@
             } catch(e) {}
         }
         if (topic === 'aquarium/control') {
-            if (msg === "0" || msg === "1") document.getElementById('status-led1').innerText = "1. Állapot: " + (msg === "1" ? "BE" : "KI");
-            if (msg === "2" || msg === "3") document.getElementById('status-led2').innerText = "2. Állapot: " + (msg === "3" ? "KI" : "BE");
+            if (msg === "0" || msg === "1") document.getElementById('status-led1').innerText = "Lámpa 1: " + (msg === "1" ? "BE" : "KI");
+            if (msg === "2" || msg === "3") document.getElementById('status-led2').innerText = "Lámpa 2: " + (msg === "3" ? "KI" : "BE");
         }
     });
 
     function send(topic, value) {
         client.publish(topic, value);
-        updateLog("Küldve: " + value);
+        updateLog("Parancs küldve: " + value);
     }
 
-    function updateLog(txt) { document.getElementById('log').innerText = new Date().toLocaleTimeString() + ": " + txt; }
+    function updateLog(txt) { 
+        document.getElementById('log').innerText = new Date().toLocaleTimeString() + ": " + txt; 
+    }
 
-    // HAL LOGIKA
+    // MODAL KEZELÉS
     function openModal() {
         const container = document.getElementById('fish-list-container');
         container.innerHTML = fishData.sort((a,b) => a.name.localeCompare(b.name)).map(f => `
             <div class="fish-item">
                 <input type="checkbox" class="fish-chk" data-name="${f.name}" data-min="${f.min}" data-max="${f.max}">
-                <span>${f.name} <small>(${f.min}-${f.max}°C)</small></span>
+                <span><strong>${f.name}</strong> <br><small>${f.min}-${f.max}°C</small></span>
             </div>
         `).join('');
         document.getElementById('fish-modal').style.display = 'block';
@@ -156,268 +196,37 @@
         const selected = Array.from(document.querySelectorAll('.fish-chk:checked'));
         if (selected.length === 0) { closeModal(); return; }
 
-        let globalMin = 0; let globalMax = 100;
+        let currentMin = -Infinity;
+        let currentMax = Infinity;
         let names = [];
         
         selected.forEach(chk => {
             const min = parseFloat(chk.dataset.min);
             const max = parseFloat(chk.dataset.max);
             names.push(chk.dataset.name);
-            if (min > globalMin) globalMin = min;
-            if (max < globalMax) globalMax = max;
+            if (min > currentMin) currentMin = min;
+            if (max < currentMax) currentMax = max;
         });
 
         const resultBox = document.getElementById('result-box');
         const idealText = document.getElementById('ideal-temp-val');
         resultBox.style.display = 'block';
 
-        if (globalMin > globalMax) {
+        if (currentMin > currentMax) {
             resultBox.className = 'alert-warning';
-            resultBox.innerHTML = `⚠️ <strong>Összeférhetetlen!</strong> A választott halak hőigénye között túl nagy a különbség (${globalMin}°C vs ${globalMax}°C).`;
+            resultBox.innerHTML = `⚠️ <strong>Nem összeegyeztethető!</strong><br>A kiválasztott halak közül van olyan, amelyiknek minimum ${currentMin}°C kellene, és olyan is, amelyik maximum ${currentMax}°C-ot bír ki.`;
             idealText.innerText = "";
         } else {
-            const ideal = ((globalMin + globalMax) / 2).toFixed(1);
+            const ideal = ((currentMin + currentMax) / 2).toFixed(1);
             resultBox.className = 'alert-success';
-            resultBox.innerHTML = `✅ <strong>Megfelelő!</strong> Ideális tartomány: ${globalMin}-${globalMax}°C.`;
-            idealText.innerText = `Cél hőmérséklet: ${ideal} °C`;
+            resultBox.innerHTML = `✅ <strong>Sikeres illesztés!</strong><br>Minden hal jól érzi magát ${currentMin} és ${currentMax}°C között.`;
+            idealText.innerText = `Ideális hőfok: ${ideal} °C`;
             
-            // Küldés a Gerincnek
+            // Küldés a Gerinc kontrollernek
             send('aquarium/setpoint', ideal);
         }
         closeModal();
     }
 </script>
 </body>
-</html><!DOCTYPE html>
-<html lang="hu">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AquaControl Pro Dashboard</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
-    <style>
-        :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --bg: #f4f7f9; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; }
-        h1 { color: #2c3e50; margin-bottom: 30px; }
-        
-        /* Kártya stílus - könnyen másolható */
-        .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); text-align: left; }
-        .card h3 { margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; color: #7f8c8d; }
-        .value { font-size: 28px; font-weight: bold; color: var(--primary); }
-        
-        /* Gombok elrendezése */
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
-        button { border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; color: white; }
-        .btn-on { background: var(--success); }
-        .btn-off { background: var(--danger); }
-        button:hover { opacity: 0.8; transform: translateY(-1px); }
-        
-        #log { font-size: 11px; color: #95a5a6; margin-top: 20px; font-family: monospace; }
-    </style>
-</head>
-<body>
-
-<div class="container">
-    <h1>🌊 AquaControl Pro v0.1</h1>
-
-    <div class="card">
-        <h3>Vízminőség (Node A)</h3>
-        <div id="ph-val" class="value">-- pH</div>
-        <div id="temp-val" class="value" style="font-size: 18px; color: #e67e22;">-- °C</div>
-    </div>
-
-    <div class="card">
-        <h3>Világítás (Node B)</h3>
-        <div id="status-led1" style="margin-bottom: 10px;">Állapot: Ismeretlen</div>
-		<div id="status-led2" style="margin-bottom: 10px;">Állapot: Ismeretlen</div>
-        <div class="grid">
-            <button class="btn-on" onclick="send('aquarium/control', '1')">1BE</button>
-            <button class="btn-off" onclick="send('aquarium/control', '0')">1KI</button>
-			<button class="btn-on" onclick="send('aquarium/control', '2')">2BE</button>
-            <button class="btn-off" onclick="send('aquarium/control', '3')">2KI</button>
-        </div>
-    </div>
-
-    <div class="card">
-        <h3>Haletető Automata</h3>
-        <div class="grid">
-            <button style="background: var(--primary); grid-column: span 2;" onclick="send('aquarium/feeder', 'START')">Etetés indítása</button>
-        </div>
-    </div>
-
-    <div id="log">Csatlakozás folyamatban...</div>
-</div>
-
-<script>
-    const host = 'wss://4769a5772b894e1ea634b4eff4b1c6cd.s1.eu.hivemq.cloud:8884/mqtt';
-    const options = {
-        clientId: 'WebDash_' + Math.random().toString(16).substr(2, 5),
-        username: 'akva_admin', 
-        password: 'Akva123456'
-    };
-
-    const client = mqtt.connect(host, options);
-
-    client.on('connect', () => {
-        updateLog("Online - HiveMQ kapcsolat OK");
-        client.subscribe('aquarium/#'); // Mindenre feliratkozik, ami 'aquarium/' -al kezdődik
-    });
-
-    client.on('message', (topic, message) => {
-        const msg = message.toString();
-        console.log("Bejövő:", topic, msg);
-
-        // SZENZOR ADATOK FELDOLGOZÁSA
-        if (topic === 'aquarium/sensor/data') {
-            try {
-                const data = JSON.parse(msg);
-                if(data.ph) document.getElementById('ph-val').innerText = data.ph + " pH";
-                if(data.temp) document.getElementById('temp-val').innerText = data.temp + " °C";
-            } catch(e) { /* Nem JSON adat */ }
-        }
-
-        // VISSZAJELZÉS A VEZÉRLÉSRŐL
-        if (topic === 'aquarium/control') {
-		
-			if (msg === "0" || msg === "1") {
-				document.getElementById('status-led1').innerText = "Állapot: " + (msg === "1" ? "Bekapcsolva" : "Kikapcsolva");
-			} 
-
-			else if (msg === "2" || msg === "3") {
-				document.getElementById('status-led2').innerText = "Állapot2: " + (msg === "3" ? "Kikapcsolva" : "Bekapcsolva");
-			}
-        }
-    });
-
-    // Univerzális küldő függvény
-    function send(topic, value) {
-        client.publish(topic, value);
-        updateLog("Küldve: " + value + " -> " + topic);
-    }
-
-    function updateLog(txt) {
-        document.getElementById('log').innerText = new Date().toLocaleTimeString() + ": " + txt;
-    }
-</script>
-
-</body>
-</html><!DOCTYPE html>
-<html lang="hu">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AquaControl Pro Dashboard</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
-    <style>
-        :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --bg: #f4f7f9; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; }
-        h1 { color: #2c3e50; margin-bottom: 30px; }
-        
-        /* Kártya stílus - könnyen másolható */
-        .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); text-align: left; }
-        .card h3 { margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; color: #7f8c8d; }
-        .value { font-size: 28px; font-weight: bold; color: var(--primary); }
-        
-        /* Gombok elrendezése */
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
-        button { border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; color: white; }
-        .btn-on { background: var(--success); }
-        .btn-off { background: var(--danger); }
-        button:hover { opacity: 0.8; transform: translateY(-1px); }
-        
-        #log { font-size: 11px; color: #95a5a6; margin-top: 20px; font-family: monospace; }
-    </style>
-</head>
-<body>
-
-<div class="container">
-    <h1>🌊 AquaControl Pro v0.4</h1>
-
-    <div class="card">
-        <h3>Vízminőség (Node A)</h3>
-        <div id="ph-val" class="value">-- pH</div>
-        <div id="temp-val" class="value" style="font-size: 18px; color: #e67e22;">-- °C</div>
-    </div>
-
-    <div class="card">
-        <h3>Világítás (Node B)</h3>
-        <div id="status-led1" style="margin-bottom: 10px;">Állapot: Ismeretlen</div>
-		<div id="status-led2" style="margin-bottom: 10px;">Állapot: Ismeretlen</div>
-        <div class="grid">
-            <button class="btn-on" onclick="send('aquarium/control', '1')">1BE</button>
-            <button class="btn-off" onclick="send('aquarium/control', '0')">1KI</button>
-			<button class="btn-on" onclick="send('aquarium/control', '2')">2BE</button>
-            <button class="btn-off" onclick="send('aquarium/control', '3')">2KI</button>
-        </div>
-    </div>
-
-    <div class="card">
-        <h3>Haletető Automata</h3>
-        <div class="grid">
-            <button style="background: var(--primary); grid-column: span 2;" onclick="send('aquarium/control', '4')">Etetés indítása</button>
-        </div>
-    </div>
-
-    <div id="log">Csatlakozás folyamatban...</div>
-</div>
-
-<script>
-    const host = 'wss://4769a5772b894e1ea634b4eff4b1c6cd.s1.eu.hivemq.cloud:8884/mqtt';
-    const options = {
-        clientId: 'WebDash_' + Math.random().toString(16).substr(2, 5),
-        username: 'akva_admin', 
-        password: 'Akva123456'
-    };
-
-    const client = mqtt.connect(host, options);
-
-    client.on('connect', () => {
-        updateLog("Online - HiveMQ kapcsolat OK");
-        client.subscribe('aquarium/#'); // Mindenre feliratkozik, ami 'aquarium/' -al kezdődik
-    });
-
-    client.on('message', (topic, message) => {
-        const msg = message.toString();
-        console.log("Bejövő:", topic, msg);
-
-        // SZENZOR ADATOK FELDOLGOZÁSA
-        if (topic === 'aquarium/sensor/data') {
-            try {
-                const data = JSON.parse(msg);
-                if(data.ph) document.getElementById('ph-val').innerText = data.ph + " pH";
-                if(data.temp) document.getElementById('temp-val').innerText = data.temp + " °C";
-            } catch(e) { /* Nem JSON adat */ }
-        }
-
-        // VISSZAJELZÉS A VEZÉRLÉSRŐL
-        if (topic === 'aquarium/control') {
-		
-			if (msg === "0" || msg === "1") {
-				document.getElementById('status-led1').innerText = "Állapot: " + (msg === "1" ? "Bekapcsolva" : "Kikapcsolva");
-			} 
-
-			else if (msg === "2" || msg === "3") {
-				document.getElementById('status-led2').innerText = "Állapot2: " + (msg === "3" ? "Kikapcsolva" : "Bekapcsolva");
-			}
-        }
-    });
-
-    // Univerzális küldő függvény
-    function send(topic, value) {
-        client.publish(topic, value);
-        updateLog("Küldve: " + value + " -> " + topic);
-    }
-
-    function updateLog(txt) {
-        document.getElementById('log').innerText = new Date().toLocaleTimeString() + ": " + txt;
-    }
-</script>
-
-</body>
 </html>
-
-
-
-
