@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AquaControl Pro Dashboard v0.1</title>
+    <title>AquaControl Pro Dashboard v0.2</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
     <style>
         :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --warning: #ffc107; --bg: #f4f7f9; --accent: #e83e8c; --check: #17a2b8; }
@@ -16,6 +16,11 @@
         .value { font-size: 28px; font-weight: bold; color: var(--primary); }
         .value-ph { font-size: 24px; font-weight: bold; color: var(--check); margin-top: 5px; }
         
+        /* Világítás specifikus stílusok */
+        .light-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+        .light-sub-val { font-size: 20px; font-weight: bold; color: #444; }
+        .light-msg { font-size: 12px; margin-top: 5px; font-weight: 600; min-height: 18px; }
+
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
         button { border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; color: white; font-size: 14px; }
         .btn-on { background: var(--success); }
@@ -65,7 +70,23 @@
     </div>
 
     <div class="card">
-        <h3>Világítás (Node B)</h3>
+        <h3>Fényviszonyok (TCS34725)</h3>
+        <div class="light-grid">
+            <div>
+                <small style="color:#7f8c8d">Intenzitás</small>
+                <div id="lux-val" class="light-sub-val">-- lx</div>
+                <div id="lux-msg" class="light-msg"></div>
+            </div>
+            <div>
+                <small style="color:#7f8c8d">Spektrum</small>
+                <div id="kelvin-val" class="light-sub-val">-- K</div>
+                <div id="kelvin-msg" class="light-msg"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Manuális Vezérlés (Node B)</h3>
         
         <div id="box-led1" class="status-box">
             <div id="status-led1" class="status-led">Lámpa 1: Ismeretlen</div>
@@ -132,61 +153,75 @@
     client.on('message', (topic, message) => {
         const msg = message.toString();
         
-        if (topic === 'aquarium/status/led1') {
-            updateStatusDisplay('led1', msg);
-        }
-        if (topic === 'aquarium/status/led2') {
-            updateStatusDisplay('led2', msg);
-        }
+        if (topic === 'aquarium/status/led1') updateStatusDisplay('led1', msg);
+        if (topic === 'aquarium/status/led2') updateStatusDisplay('led2', msg);
 
         if (topic === 'aquarium/sensor/data') {
             try {
                 const data = JSON.parse(msg);
-                // Extra védelem a JS hibák ellen (csak akkor írja ki, ha létezik az elem ÉS van adat)
-                if(data.ph !== undefined) {
-                    const phEl = document.getElementById('ph-val');
-                    if(phEl) phEl.innerText = data.ph + " pH";
+                
+                // Hőmérséklet és pH frissítése
+                if(data.ph !== undefined) document.getElementById('ph-val').innerText = data.ph + " pH";
+                if(data.temp !== undefined) document.getElementById('temp-val').innerText = data.temp + " °C";
+                
+                // VILÁGÍTÁS ADATOK FELDOLGOZÁSA (Lux és Kelvin)
+                if(data.lux !== undefined) {
+                    const luxVal = document.getElementById('lux-val');
+                    const luxMsg = document.getElementById('lux-msg');
+                    luxVal.innerText = Math.round(data.lux) + " lx";
+                    
+                    if(data.lux < 1000) {
+                        luxMsg.innerText = "⚠️ Alacsony fényerő";
+                        luxMsg.style.color = "var(--warning)";
+                    } else if(data.lux > 5000) {
+                        luxMsg.innerText = "⚠️ Túl erős megvilágítás";
+                        luxMsg.style.color = "var(--danger)";
+                    } else {
+                        luxMsg.innerText = "✅ Optimális";
+                        luxMsg.style.color = "var(--success)";
+                    }
                 }
-                if(data.temp !== undefined) {
-                    const tempEl = document.getElementById('temp-val');
-                    if(tempEl) tempEl.innerText = data.temp + " °C";
+
+                if(data.kelvin !== undefined) {
+                    const kVal = document.getElementById('kelvin-val');
+                    const kMsg = document.getElementById('kelvin-msg');
+                    kVal.innerText = Math.round(data.kelvin) + " K";
+
+                    if(data.kelvin < 5500) {
+                        kMsg.innerText = "⚠️ Túl meleg spektrum";
+                        kMsg.style.color = "var(--warning)";
+                    } else if(data.kelvin > 8000) {
+                        kMsg.innerText = "⚠️ Túl hideg (kék) fény";
+                        kMsg.style.color = "var(--warning)";
+                    } else {
+                        kMsg.innerText = "✅ Ideális nappali fény";
+                        kMsg.style.color = "var(--success)";
+                    }
                 }
-            } catch(e) {
-                console.error("Hiba a JSON feldolgozása közben: ", e);
-            }
+
+            } catch(e) { console.error("JSON hiba: ", e); }
         }
     });
 
+    // --- Többi segédfüggvény változatlanul ---
     function updateStatusDisplay(ledId, state) {
         const textEl = document.getElementById('status-' + ledId);
         const boxEl = document.getElementById('box-' + ledId);
         const label = ledId === 'led1' ? 'Lámpa 1' : 'Lámpa 2';
-
         if (state === "1") {
-            textEl.innerText = label + ": BEKAPCSOLVA (Áram alatt)";
+            textEl.innerText = label + ": BEKAPCSOLVA";
             boxEl.style.borderLeftColor = "var(--success)";
             textEl.style.color = "var(--success)";
         } else {
-            textEl.innerText = label + ": KIKAPCSOLVA (Nincs áram)";
+            textEl.innerText = label + ": KIKAPCSOLVA";
             boxEl.style.borderLeftColor = "var(--danger)";
             textEl.style.color = "var(--danger)";
         }
     }
 
-    function send(topic, value) {
-        client.publish(topic, value);
-        updateLog("Küldve: " + value + " -> " + topic);
-    }
-
-    function applyTemperature() {
-        if (currentCalculatedSetpoint) {
-            send('aquarium/setpoint', currentCalculatedSetpoint);
-            document.getElementById('btn-set-temp').disabled = true;
-        }
-    }
-
+    function send(topic, value) { client.publish(topic, value); updateLog("Küldve: " + value); }
+    function applyTemperature() { if (currentCalculatedSetpoint) { send('aquarium/setpoint', currentCalculatedSetpoint); document.getElementById('btn-set-temp').disabled = true; } }
     function updateLog(txt) { document.getElementById('log').innerText = new Date().toLocaleTimeString() + ": " + txt; }
-
     function openModal() {
         const container = document.getElementById('fish-list-container');
         container.innerHTML = fishData.sort((a,b) => a.name.localeCompare(b.name)).map(f => `
@@ -197,16 +232,13 @@
         `).join('');
         document.getElementById('fish-modal').style.display = 'block';
     }
-
     function closeModal() { document.getElementById('fish-modal').style.display = 'none'; }
-
     function filterFish() {
         const val = document.getElementById('fishSearch').value.toLowerCase();
         document.querySelectorAll('.fish-item').forEach(item => {
             item.style.display = item.innerText.toLowerCase().includes(val) ? 'flex' : 'none';
         });
     }
-
     function processSelection() {
         const selected = Array.from(document.querySelectorAll('.fish-chk:checked'));
         if (selected.length === 0) { closeModal(); return; }
