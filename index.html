@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AquaControl Pro Dashboard v0.9</title>
+    <title>AquaControl Pro Dashboard v0.1</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
     <style>
         :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --warning: #ffc107; --bg: #f4f7f9; --accent: #e83e8c; --check: #17a2b8; }
@@ -14,6 +14,7 @@
         .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
         .card h3 { margin: 0 0 10px 0; font-size: 13px; text-transform: uppercase; color: #7f8c8d; letter-spacing: 1px; }
         .value { font-size: 28px; font-weight: bold; color: var(--primary); }
+        .value-ph { font-size: 24px; font-weight: bold; color: var(--check); margin-top: 5px; }
         
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
         button { border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; color: white; font-size: 14px; }
@@ -49,12 +50,14 @@
 <body>
 
 <div class="container">
-    <h1>🌊 AquaControl Pro v0.1</h1>
+    <h1>🌊 AquaControl Pro v0.2</h1>
 
     <div class="card">
-        <h3>Hőmérséklet Kontroll</h3>
+        <h3>Vízminőség & Hőmérséklet</h3>
         <div id="temp-val" class="value">-- °C</div>
-        <div id="ideal-temp-val" style="color: var(--success); font-weight: bold; margin-top: 5px; font-size: 18px;"></div>
+        <div id="ph-val" class="value-ph">-- pH</div>
+        
+        <div id="ideal-temp-val" style="color: var(--success); font-weight: bold; margin-top: 10px; font-size: 16px;"></div>
         <div id="result-box"></div>
         
         <button class="btn-main" onclick="openModal()">🐟 Halak Kiválasztása</button>
@@ -106,7 +109,6 @@
 <script>
     let currentCalculatedSetpoint = null;
 
-    // Haladatok feltöltése (részlet a CSV-ből)
     const fishData = [
         {name: "Neon tetra", min: 20, max: 26}, {name: "Cardinal tetra", min: 24, max: 28},
         {name: "Guppy", min: 22, max: 28}, {name: "Platy", min: 20, max: 26},
@@ -124,14 +126,12 @@
     client.on('connect', () => { 
         updateLog("Online"); 
         client.subscribe('aquarium/#');
-        // Belépéskor azonnal lekérdezzük az állapotot
         setTimeout(() => send('aquarium/request', 'CHECK'), 1000);
     });
 
     client.on('message', (topic, message) => {
         const msg = message.toString();
         
-        // STÁTUSZ JELENTÉSEK KEZELÉSE
         if (topic === 'aquarium/status/led1') {
             updateStatusDisplay('led1', msg);
         }
@@ -139,13 +139,21 @@
             updateStatusDisplay('led2', msg);
         }
 
-        // Szenzor adatok
         if (topic === 'aquarium/sensor/data') {
             try {
                 const data = JSON.parse(msg);
-                if(data.ph) document.getElementById('ph-val').innerText = data.ph + " pH";
-                if(data.temp) document.getElementById('temp-val').innerText = data.temp + " °C";
-            } catch(e) {}
+                // Extra védelem a JS hibák ellen (csak akkor írja ki, ha létezik az elem ÉS van adat)
+                if(data.ph !== undefined) {
+                    const phEl = document.getElementById('ph-val');
+                    if(phEl) phEl.innerText = data.ph + " pH";
+                }
+                if(data.temp !== undefined) {
+                    const tempEl = document.getElementById('temp-val');
+                    if(tempEl) tempEl.innerText = data.temp + " °C";
+                }
+            } catch(e) {
+                console.error("Hiba a JSON feldolgozása közben: ", e);
+            }
         }
     });
 
@@ -165,7 +173,6 @@
         }
     }
 
-    // MQTT küldés
     function send(topic, value) {
         client.publish(topic, value);
         updateLog("Küldve: " + value + " -> " + topic);
@@ -180,7 +187,6 @@
 
     function updateLog(txt) { document.getElementById('log').innerText = new Date().toLocaleTimeString() + ": " + txt; }
 
-    // MODAL KEZELÉS (Halválasztó)
     function openModal() {
         const container = document.getElementById('fish-list-container');
         container.innerHTML = fishData.sort((a,b) => a.name.localeCompare(b.name)).map(f => `
