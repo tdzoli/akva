@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AquaControl Pro Dashboard v0.3</title>
+    <title>AquaControl Pro Dashboard v0.4</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
     <style>
         :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --warning: #ffc107; --bg: #f4f7f9; --accent: #e83e8c; --check: #17a2b8; --purple: #6f42c1; }
@@ -11,19 +11,22 @@
         .container { max-width: 600px; margin: 0 auto; }
         h1 { color: #2c3e50; margin-bottom: 20px; text-align: center; }
         
+        /* Riasztás stílusa */
+        .alert-box { background: var(--danger); color: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.8; transform: scale(0.99); } 100% { opacity: 1; } }
+        .stale-data { opacity: 0.3; transition: opacity 0.5s; }
+
         .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
         .card h3 { margin: 0 0 15px 0; font-size: 13px; text-transform: uppercase; color: #7f8c8d; letter-spacing: 1px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
         
-        /* Vízminőség Grid */
         .water-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px; text-align: center; }
         .water-label { font-size: 11px; color: #7f8c8d; text-transform: uppercase; font-weight: bold; }
-        .value { font-size: 24px; font-weight: bold; color: var(--primary); margin-top: 5px; }
-        .value-ph { font-size: 24px; font-weight: bold; color: var(--check); margin-top: 5px; }
-        .value-tds { font-size: 24px; font-weight: bold; color: var(--purple); margin-top: 5px; }
+        .value { font-size: 24px; font-weight: bold; color: var(--primary); margin-top: 5px; transition: opacity 0.5s; }
+        .value-ph { font-size: 24px; font-weight: bold; color: var(--check); margin-top: 5px; transition: opacity 0.5s; }
+        .value-tds { font-size: 24px; font-weight: bold; color: var(--purple); margin-top: 5px; transition: opacity 0.5s; }
         
-        /* Világítás Grid */
         .light-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
-        .light-sub-val { font-size: 20px; font-weight: bold; color: #444; }
+        .light-sub-val { font-size: 20px; font-weight: bold; color: #444; transition: opacity 0.5s; }
         .light-msg { font-size: 12px; margin-top: 5px; font-weight: 600; min-height: 18px; }
 
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
@@ -40,7 +43,7 @@
         .status-box { padding: 10px; border-radius: 8px; background: #f8f9fa; margin-bottom: 10px; border-left: 5px solid #ccc; transition: 0.3s; }
         .status-led { font-size: 14px; font-weight: 600; }
 
-        /* Modal & Hal lista */
+        /* Modal stílusok */
         #fish-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; }
         .modal-content { background: white; width: 90%; max-width: 500px; margin: 40px auto; border-radius: 15px; max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; }
         .modal-header { padding: 20px; border-bottom: 1px solid #eee; }
@@ -60,11 +63,14 @@
 <body>
 
 <div class="container">
-    <h1>🌊 AquaControl Pro v0.3</h1>
+    <h1>🌊 AquaControl Pro v0.4</h1>
+
+    <div id="system-alert" class="alert-box" style="display: none;">
+        ⚠️ KRITIKUS HIBA: A Szenzor Node (Node A) nem küld adatot!
+    </div>
 
     <div class="card">
         <h3>Vízminőség & Hőmérséklet</h3>
-        
         <div class="water-grid">
             <div>
                 <div class="water-label">Hőmérséklet</div>
@@ -105,13 +111,8 @@
 
     <div class="card">
         <h3>Manuális Vezérlés (Node B)</h3>
-        
-        <div id="box-led1" class="status-box">
-            <div id="status-led1" class="status-led">Lámpa 1: Ismeretlen</div>
-        </div>
-        <div id="box-led2" class="status-box">
-            <div id="status-led2" class="status-led">Lámpa 2: Ismeretlen</div>
-        </div>
+        <div id="box-led1" class="status-box"><div id="status-led1" class="status-led">Lámpa 1: Ismeretlen</div></div>
+        <div id="box-led2" class="status-box"><div id="status-led2" class="status-led">Lámpa 2: Ismeretlen</div></div>
 
         <div class="grid">
             <button class="btn-on" onclick="send('aquarium/control', '1')">1. BE</button>
@@ -119,7 +120,6 @@
             <button class="btn-on" onclick="send('aquarium/control', '2')">2. BE</button>
             <button class="btn-off" onclick="send('aquarium/control', '3')">2. KI</button>
         </div>
-
         <button class="btn-check" onclick="send('aquarium/request', 'CHECK')">🔍 Állapot ellenőrzése</button>
     </div>
 
@@ -147,6 +147,8 @@
 
 <script>
     let currentCalculatedSetpoint = null;
+    let sensorWatchdog;
+    const WATCHDOG_TIMEOUT = 25000; // 25 mp
 
     const fishData = [
         {name: "Neon tetra", min: 20, max: 26}, {name: "Cardinal tetra", min: 24, max: 28},
@@ -168,6 +170,19 @@
         setTimeout(() => send('aquarium/request', 'CHECK'), 1000);
     });
 
+    // WATCHDOG KEZELŐ FÜGGVÉNY
+    function resetSensorWatchdog() {
+        document.getElementById('system-alert').style.display = 'none';
+        document.querySelectorAll('.value, .value-ph, .value-tds, .light-sub-val').forEach(el => el.classList.remove('stale-data'));
+        
+        clearTimeout(sensorWatchdog);
+        sensorWatchdog = setTimeout(() => {
+            document.getElementById('system-alert').style.display = 'block';
+            updateLog("⚠️ WATCHDOG: Szenzor Node időtúllépés!");
+            document.querySelectorAll('.value, .value-ph, .value-tds, .light-sub-val').forEach(el => el.classList.add('stale-data'));
+        }, WATCHDOG_TIMEOUT);
+    }
+
     client.on('message', (topic, message) => {
         const msg = message.toString();
         
@@ -178,7 +193,10 @@
             try {
                 const data = JSON.parse(msg);
                 
-                // Vízminőség (Hőfok, pH, TDS)
+                // ÚJ ADAT ÉRKEZETT -> WATCHDOG NULLÁZÁSA
+                resetSensorWatchdog();
+                
+                // Vízminőség
                 if(data.temp !== undefined) document.getElementById('temp-val').innerText = data.temp + " °C";
                 if(data.ph !== undefined) document.getElementById('ph-val').innerText = data.ph + " pH";
                 if(data.tds !== undefined) document.getElementById('tds-val').innerText = data.tds + " ppm";
