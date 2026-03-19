@@ -3,20 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AquaControl Pro Dashboard v0.2</title>
+    <title>AquaControl Pro Dashboard v0.3</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
     <style>
-        :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --warning: #ffc107; --bg: #f4f7f9; --accent: #e83e8c; --check: #17a2b8; }
+        :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --warning: #ffc107; --bg: #f4f7f9; --accent: #e83e8c; --check: #17a2b8; --purple: #6f42c1; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #333; }
         .container { max-width: 600px; margin: 0 auto; }
         h1 { color: #2c3e50; margin-bottom: 20px; text-align: center; }
         
         .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-        .card h3 { margin: 0 0 10px 0; font-size: 13px; text-transform: uppercase; color: #7f8c8d; letter-spacing: 1px; }
-        .value { font-size: 28px; font-weight: bold; color: var(--primary); }
-        .value-ph { font-size: 24px; font-weight: bold; color: var(--check); margin-top: 5px; }
+        .card h3 { margin: 0 0 15px 0; font-size: 13px; text-transform: uppercase; color: #7f8c8d; letter-spacing: 1px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
         
-        /* Világítás specifikus stílusok */
+        /* Vízminőség Grid */
+        .water-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px; text-align: center; }
+        .water-label { font-size: 11px; color: #7f8c8d; text-transform: uppercase; font-weight: bold; }
+        .value { font-size: 24px; font-weight: bold; color: var(--primary); margin-top: 5px; }
+        .value-ph { font-size: 24px; font-weight: bold; color: var(--check); margin-top: 5px; }
+        .value-tds { font-size: 24px; font-weight: bold; color: var(--purple); margin-top: 5px; }
+        
+        /* Világítás Grid */
         .light-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
         .light-sub-val { font-size: 20px; font-weight: bold; color: #444; }
         .light-msg { font-size: 12px; margin-top: 5px; font-weight: 600; min-height: 18px; }
@@ -55,12 +60,25 @@
 <body>
 
 <div class="container">
-    <h1>🌊 AquaControl Pro v0.2</h1>
+    <h1>🌊 AquaControl Pro v0.3</h1>
 
     <div class="card">
         <h3>Vízminőség & Hőmérséklet</h3>
-        <div id="temp-val" class="value">-- °C</div>
-        <div id="ph-val" class="value-ph">-- pH</div>
+        
+        <div class="water-grid">
+            <div>
+                <div class="water-label">Hőmérséklet</div>
+                <div id="temp-val" class="value">-- °C</div>
+            </div>
+            <div>
+                <div class="water-label">Kémhatás</div>
+                <div id="ph-val" class="value-ph">-- pH</div>
+            </div>
+            <div>
+                <div class="water-label">Oldott Anyag</div>
+                <div id="tds-val" class="value-tds">-- ppm</div>
+            </div>
+        </div>
         
         <div id="ideal-temp-val" style="color: var(--success); font-weight: bold; margin-top: 10px; font-size: 16px;"></div>
         <div id="result-box"></div>
@@ -107,7 +125,7 @@
 
     <div class="card">
         <h3>Haletető Automata</h3>
-        <button class="btn-main" style="background: #6f42c1;" onclick="send('aquarium/control', '4')">Etetés indítása</button>
+        <button class="btn-main" style="background: var(--purple);" onclick="send('aquarium/control', '4')">Etetés indítása</button>
     </div>
 
     <div id="log">Csatlakozás folyamatban...</div>
@@ -160,26 +178,20 @@
             try {
                 const data = JSON.parse(msg);
                 
-                // Hőmérséklet és pH frissítése
-                if(data.ph !== undefined) document.getElementById('ph-val').innerText = data.ph + " pH";
+                // Vízminőség (Hőfok, pH, TDS)
                 if(data.temp !== undefined) document.getElementById('temp-val').innerText = data.temp + " °C";
+                if(data.ph !== undefined) document.getElementById('ph-val').innerText = data.ph + " pH";
+                if(data.tds !== undefined) document.getElementById('tds-val').innerText = data.tds + " ppm";
                 
-                // VILÁGÍTÁS ADATOK FELDOLGOZÁSA (Lux és Kelvin)
+                // Világítás
                 if(data.lux !== undefined) {
                     const luxVal = document.getElementById('lux-val');
                     const luxMsg = document.getElementById('lux-msg');
                     luxVal.innerText = Math.round(data.lux) + " lx";
                     
-                    if(data.lux < 1000) {
-                        luxMsg.innerText = "⚠️ Alacsony fényerő";
-                        luxMsg.style.color = "var(--warning)";
-                    } else if(data.lux > 5000) {
-                        luxMsg.innerText = "⚠️ Túl erős megvilágítás";
-                        luxMsg.style.color = "var(--danger)";
-                    } else {
-                        luxMsg.innerText = "✅ Optimális";
-                        luxMsg.style.color = "var(--success)";
-                    }
+                    if(data.lux < 1000) { luxMsg.innerText = "⚠️ Alacsony fényerő"; luxMsg.style.color = "var(--warning)"; }
+                    else if(data.lux > 5000) { luxMsg.innerText = "⚠️ Túl erős"; luxMsg.style.color = "var(--danger)"; }
+                    else { luxMsg.innerText = "✅ Optimális"; luxMsg.style.color = "var(--success)"; }
                 }
 
                 if(data.kelvin !== undefined) {
@@ -187,23 +199,15 @@
                     const kMsg = document.getElementById('kelvin-msg');
                     kVal.innerText = Math.round(data.kelvin) + " K";
 
-                    if(data.kelvin < 5500) {
-                        kMsg.innerText = "⚠️ Túl meleg spektrum";
-                        kMsg.style.color = "var(--warning)";
-                    } else if(data.kelvin > 8000) {
-                        kMsg.innerText = "⚠️ Túl hideg (kék) fény";
-                        kMsg.style.color = "var(--warning)";
-                    } else {
-                        kMsg.innerText = "✅ Ideális nappali fény";
-                        kMsg.style.color = "var(--success)";
-                    }
+                    if(data.kelvin < 5500) { kMsg.innerText = "⚠️ Túl meleg spektrum"; kMsg.style.color = "var(--warning)"; }
+                    else if(data.kelvin > 8000) { kMsg.innerText = "⚠️ Túl hideg (kék)"; kMsg.style.color = "var(--warning)"; }
+                    else { kMsg.innerText = "✅ Ideális"; kMsg.style.color = "var(--success)"; }
                 }
 
             } catch(e) { console.error("JSON hiba: ", e); }
         }
     });
 
-    // --- Többi segédfüggvény változatlanul ---
     function updateStatusDisplay(ledId, state) {
         const textEl = document.getElementById('status-' + ledId);
         const boxEl = document.getElementById('box-' + ledId);
@@ -222,6 +226,7 @@
     function send(topic, value) { client.publish(topic, value); updateLog("Küldve: " + value); }
     function applyTemperature() { if (currentCalculatedSetpoint) { send('aquarium/setpoint', currentCalculatedSetpoint); document.getElementById('btn-set-temp').disabled = true; } }
     function updateLog(txt) { document.getElementById('log').innerText = new Date().toLocaleTimeString() + ": " + txt; }
+    
     function openModal() {
         const container = document.getElementById('fish-list-container');
         container.innerHTML = fishData.sort((a,b) => a.name.localeCompare(b.name)).map(f => `
@@ -232,13 +237,16 @@
         `).join('');
         document.getElementById('fish-modal').style.display = 'block';
     }
+    
     function closeModal() { document.getElementById('fish-modal').style.display = 'none'; }
+    
     function filterFish() {
         const val = document.getElementById('fishSearch').value.toLowerCase();
         document.querySelectorAll('.fish-item').forEach(item => {
             item.style.display = item.innerText.toLowerCase().includes(val) ? 'flex' : 'none';
         });
     }
+    
     function processSelection() {
         const selected = Array.from(document.querySelectorAll('.fish-chk:checked'));
         if (selected.length === 0) { closeModal(); return; }
