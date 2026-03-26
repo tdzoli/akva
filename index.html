@@ -90,12 +90,9 @@
         </div>
         <div id="ideal-temp-val" style="color: var(--success); font-weight: bold; margin-top: 10px; font-size: 14px;">Aktív célérték: Nincs adat</div>
         
-        <!-- Ez a doboz szürkül el, ha nincs SD kártya -->
         <div id="result-box" class="sd-dependent"></div>
         
         <button class="btn-main" onclick="openModal()">🐟 Halak Kiválasztása</button>
-        
-        <!-- Ez a gomb is szürkül és inaktív lesz -->
         <button id="btn-set-temp" class="btn-action sd-dependent" onclick="applyTemperature()" disabled>⚙️ Ideális hőmérséklet beállítása</button>
     </div>
 
@@ -282,9 +279,12 @@
                 if(data.ph !== undefined) document.getElementById('ph-val').innerText = data.ph + " pH";
                 if(data.tds !== undefined) document.getElementById('tds-val').innerText = data.tds + " ppm";
                 
-                // TCS34725 adatok kiértékelése és megjelenítése
                 if(data.lux !== undefined && data.kelvin !== undefined) {
-                    evaluateLightData(data.lux, data.kelvin, data.r_pct, data.g_pct, data.b_pct);
+                    // Biztonsági ellenőrzés: Ha undefined az RGB, akkor 0-nak vesszük, de nálunk a szenzor most már küldi!
+                    let r = data.r_pct !== undefined ? data.r_pct : 0;
+                    let g = data.g_pct !== undefined ? data.g_pct : 0;
+                    let b = data.b_pct !== undefined ? data.b_pct : 0;
+                    evaluateLightData(data.lux, data.kelvin, r, g, b);
                 }
             } catch(e) { console.error(e); }
         }
@@ -294,7 +294,6 @@
         document.getElementById('lux-val').innerText = Math.round(lux) + " lx";
         document.getElementById('kelvin-val').innerText = Math.round(kelvin) + " K";
         
-        // Előfordulhat, hogy osztás nullával miatt NaN jön, ezt kezeljük
         if (!isNaN(r)) document.getElementById('r-val').innerText = r.toFixed(1);
         if (!isNaN(g)) document.getElementById('g-val').innerText = g.toFixed(1);
         if (!isNaN(b)) document.getElementById('b-val').innerText = b.toFixed(1);
