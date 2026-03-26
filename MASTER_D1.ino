@@ -14,10 +14,10 @@ const char* mqtt_user = "akva_admin";
 const char* mqtt_pass = "Akva123456";
 
 const int SD_CS_PIN = D3; 
-const int SD_CD_PIN = D4; // A Card Detect láb
+const int SD_CD_PIN = D4;
 
 bool sdCardPresent = false;
-volatile bool cdStateChanged = false; // Interrupt flag
+volatile bool cdStateChanged = false;
 unsigned long lastCdDebounce = 0;
 
 WiFiClientSecure espClient;
@@ -36,12 +36,23 @@ ICACHE_RAM_ATTR void handleCDInterrupt() {
   cdStateChanged = true;
 }
 
+// 🔧 ÚJ: float → vesszős string
+String formatFloat(float value, int decimals = 2) {
+  String s = String(value, decimals);
+  s.replace('.', ',');
+  return s;
+}
+
 String getFormattedDateTime() {
   timeClient.update();
   time_t epochTime = timeClient.getEpochTime();
   struct tm *ptm = gmtime ((time_t *)&epochTime); 
   char buffer[25];
-  sprintf(buffer, "%04d.%02d.%02d %s", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday, timeClient.getFormattedTime().c_str());
+  sprintf(buffer, "%04d.%02d.%02d %s",
+          ptm->tm_year + 1900,
+          ptm->tm_mon + 1,
+          ptm->tm_mday,
+          timeClient.getFormattedTime().c_str());
   return String(buffer);
 }
 
@@ -57,7 +68,11 @@ void loadSetupFromSD() {
     }
   } else {
     File setupFile = SD.open(setupFileName, FILE_WRITE);
-    if (setupFile) { setupFile.println("25.0"); activeSetpoint = 25.0; setupFile.close(); }
+    if (setupFile) {
+      setupFile.println("25.0");
+      activeSetpoint = 25.0;
+      setupFile.close();
+    }
   }
 }
 
@@ -92,7 +107,6 @@ void setupSDCard() {
   sdCardPresent = true;
   client.publish("aquarium/health/sdcard", "OK", true);
   
-  // ÚJ: Kibővített CSV fejléc az RGB adatoknak
   if (!SD.exists(logFileName)) {
     File logFile = SD.open(logFileName, FILE_WRITE);
     if (logFile) { 
@@ -103,20 +117,24 @@ void setupSDCard() {
   loadSetupFromSD();
 }
 
-// ÚJ: A függvény immár fogadja az R, G, B százalékokat is
+// 🔧 MÓDOSÍTVA: minden float vesszős
 void logDataToSD(String timestamp, float temp, float ph, float tds, int lux, int kelvin, float r_pct, float g_pct, float b_pct) {
   if (!sdCardPresent) return;
   File logFile = SD.open(logFileName, FILE_WRITE);
   if (logFile) {
     logFile.print(timestamp); logFile.print(";");
-    logFile.print(temp); logFile.print(";");
-    logFile.print(ph); logFile.print(";");
-    logFile.print(tds); logFile.print(";");
+    
+    logFile.print(formatFloat(temp)); logFile.print(";");
+    logFile.print(formatFloat(ph)); logFile.print(";");
+    logFile.print(formatFloat(tds)); logFile.print(";");
+    
     logFile.print(lux); logFile.print(";");
     logFile.print(kelvin); logFile.print(";");
-    logFile.print(r_pct); logFile.print(";");
-    logFile.print(g_pct); logFile.print(";");
-    logFile.println(b_pct); // println a sor végére
+    
+    logFile.print(formatFloat(r_pct)); logFile.print(";");
+    logFile.print(formatFloat(g_pct)); logFile.print(";");
+    logFile.println(formatFloat(b_pct));
+    
     logFile.close();
   }
 }
@@ -130,23 +148,30 @@ void callback(char* topic, byte* payload, unsigned int length) {
     if (saveSetupToSD(requestedSetpoint)) {
       activeSetpoint = requestedSetpoint;
       client.publish("aquarium/status/setpoint", String(activeSetpoint).c_str(), true); 
-    } else {
-      Serial.println("[HIBA] SD kartya nem irhato, mentes sikertelen!");
     }
   }
   else if (String(topic) == "aquarium/request" && msg == "CHECK") {
-    if(activeSetpoint > 0) client.publish("aquarium/status/setpoint", String(activeSetpoint).c_str(), true);
+    if(activeSetpoint > 0)
+      client.publish("aquarium/status/setpoint", String(activeSetpoint).c_str(), true);
     client.publish("aquarium/health/sdcard", sdCardPresent ? "OK" : "ERROR", true);
   }
   else if (String(topic) == "aquarium/sensor/data") {
     StaticJsonDocument<256> doc;
     DeserializationError error = deserializeJson(doc, msg);
     if (!error) {
-      // ÚJ: Kiolvassuk a JSON-ból a színszázalékokat és átadjuk a naplózónak
       float r = doc["r_pct"] | 0.0;
       float g = doc["g_pct"] | 0.0;
       float b = doc["b_pct"] | 0.0;
-      logDataToSD(getFormattedDateTime(), doc["temp"], doc["ph"], doc["tds"], doc["lux"], doc["kelvin"], r, g, b);
+
+      logDataToSD(
+        getFormattedDateTime(),
+        doc["temp"],
+        doc["ph"],
+        doc["tds"],
+        doc["lux"],
+        doc["kelvin"],
+        r, g, b
+      );
     }
   }
 }
@@ -155,14 +180,16 @@ void reconnect() {
   while (!client.connected()) {
     String clientId = "NodeC_Gerinc_" + String(random(0xffff), HEX);
     if (client.connect(clientId.c_str(), mqtt_user, mqtt_pass)) {
-      Serial.println("Node C (Gerinc) MQTT SIKER!");
       client.subscribe("aquarium/setpoint");
       client.subscribe("aquarium/request"); 
       client.subscribe("aquarium/sensor/data"); 
       
       client.publish("aquarium/health/sdcard", sdCardPresent ? "OK" : "ERROR", true);
-      if(activeSetpoint > 0) client.publish("aquarium/status/setpoint", String(activeSetpoint).c_str(), true);
-    } else { delay(5000); }
+      if(activeSetpoint > 0)
+        client.publish("aquarium/status/setpoint", String(activeSetpoint).c_str(), true);
+    } else {
+      delay(5000);
+    }
   }
 }
 
@@ -195,11 +222,9 @@ void loop() {
       bool isInserted = (digitalRead(SD_CD_PIN) == LOW);
       
       if (isInserted && !sdCardPresent) {
-        Serial.println("[SD] Kartya BEHELYEZVE. Ujrainicializalas...");
         setupSDCard(); 
       } 
       else if (!isInserted && sdCardPresent) {
-        Serial.println("[SD] Kartya ELTAVOLITVA!");
         sdCardPresent = false;
         client.publish("aquarium/health/sdcard", "ERROR", true);
         SD.end(); 
