@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AquaControl Pro Dashboard v0.5</title>
+    <title>AquaControl Pro Dashboard v0.6</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
     <style>
         :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --warning: #ffc107; --bg: #f4f7f9; --accent: #e83e8c; --check: #17a2b8; --purple: #6f42c1; }
@@ -11,9 +11,8 @@
         .container { max-width: 600px; margin: 0 auto; }
         h1 { color: #2c3e50; margin-bottom: 20px; text-align: center; }
         
-        .alert-box { background: var(--danger); color: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); animation: pulse 2s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.8; transform: scale(0.99); } 100% { opacity: 1; } }
-        .stale-data { opacity: 0.3; transition: opacity 0.5s; }
+        /* Adat elavulás stílusa */
+        .stale-data { opacity: 0.3; transition: opacity 0.5s; filter: grayscale(100%); }
 
         .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
         .card h3 { margin: 0 0 15px 0; font-size: 13px; text-transform: uppercase; color: #7f8c8d; letter-spacing: 1px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
@@ -42,6 +41,7 @@
         .status-box { padding: 10px; border-radius: 8px; background: #f8f9fa; margin-bottom: 10px; border-left: 5px solid #ccc; transition: 0.3s; }
         .status-led { font-size: 14px; font-weight: 600; }
 
+        /* Modal stílusok a Halaknak */
         #fish-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; }
         .modal-content { background: white; width: 90%; max-width: 500px; margin: 40px auto; border-radius: 15px; max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; }
         .modal-header { padding: 20px; border-bottom: 1px solid #eee; }
@@ -56,16 +56,48 @@
         .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
         
         #log { font-size: 11px; color: #95a5a6; margin-top: 20px; font-family: monospace; text-align: center; }
+
+        /* OFFLINE WATCHDOG MODAL (ÚJ) */
+        #offline-modal { 
+            display: none; /* Alapból rejtett */
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.85); 
+            z-index: 9999; /* Minden felett legyen */
+            justify-content: center; align-items: center; 
+            backdrop-filter: blur(5px);
+        }
+        .offline-box { 
+            background: var(--danger); color: white; padding: 30px; 
+            border-radius: 15px; text-align: center; max-width: 400px; width: 90%;
+            box-shadow: 0 10px 30px rgba(220, 53, 69, 0.4);
+            animation: slideDown 0.5s ease-out;
+        }
+        .offline-box h2 { margin-top: 0; color: white; font-size: 24px; }
+        .offline-box p { font-size: 15px; line-height: 1.5; margin-bottom: 20px; }
+        .loader {
+            border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid white;
+            border-radius: 50%; width: 40px; height: 40px; margin: 0 auto;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes slideDown { from { transform: translateY(-50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h1>🌊 AquaControl Pro v0.5</h1>
-
-    <div id="system-alert" class="alert-box" style="display: none;">
-        ⚠️ KRITIKUS HIBA: A Szenzor Node nem küld adatot!
+<!-- OFFLINE FIGYELMEZTETŐ ABLAK -->
+<div id="offline-modal">
+    <div class="offline-box">
+        <h2>⚠️ RENDSZER LEÁLLÁS</h2>
+        <p>A Gerinc vezérlő (Node C) nem válaszolt több mint 25 másodperce.<br><br>Kérjük, ellenőrizze a hardver áramellátását és a WiFi kapcsolatot!</p>
+        <div class="loader"></div>
+        <div style="margin-top: 15px; font-size: 12px; opacity: 0.8;">Várakozás az újracsatlakozásra...</div>
     </div>
+</div>
+
+<div class="container">
+    <h1>🌊 AquaControl Pro v0.6</h1>
 
     <div class="card">
         <h3>Vízminőség & Hőmérséklet</h3>
@@ -84,7 +116,6 @@
             </div>
         </div>
         
-        <!-- IDE KERÜL A VISSZAOLVASOTT SETPOINT -->
         <div id="ideal-temp-val" style="color: var(--success); font-weight: bold; margin-top: 10px; font-size: 16px;">Aktív célérték: Nincs beállítva</div>
         <div id="result-box"></div>
         
@@ -130,7 +161,7 @@
     <div id="log">Csatlakozás folyamatban...</div>
 </div>
 
-<!-- Modal ablak a halaknak (változatlan) -->
+<!-- Modal ablak a halaknak -->
 <div id="fish-modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -147,8 +178,8 @@
 
 <script>
     let currentCalculatedSetpoint = null;
-    let sensorWatchdog;
-    const WATCHDOG_TIMEOUT = 25000; 
+    let systemWatchdog;
+    const WATCHDOG_TIMEOUT = 25000; // 25 másodperc
 
     const fishData = [
         {name: "Neon tetra", min: 20, max: 26}, {name: "Cardinal tetra", min: 24, max: 28},
@@ -164,40 +195,48 @@
         username: 'akva_admin', password: 'Akva123456'
     });
 
-    client.on('connect', () => { 
-        updateLog("Online"); 
-        client.subscribe('aquarium/#');
-        // Kérjük a rendszertől az utolsó ismert állapotokat és a lementett hőfokot!
-        setTimeout(() => send('aquarium/request', 'CHECK'), 1000);
-    });
-
-    function resetSensorWatchdog() {
-        document.getElementById('system-alert').style.display = 'none';
+    // --- WATCHDOG LOGIKA ---
+    function resetSystemWatchdog() {
+        // Ha újra van adat, elrejtjük az offline modalt és visszaadjuk a színeket
+        document.getElementById('offline-modal').style.display = 'none';
         document.querySelectorAll('.value, .value-ph, .value-tds, .light-sub-val').forEach(el => el.classList.remove('stale-data'));
-        clearTimeout(sensorWatchdog);
-        sensorWatchdog = setTimeout(() => {
-            document.getElementById('system-alert').style.display = 'block';
-            updateLog("⚠️ WATCHDOG: Szenzor Node időtúllépés!");
+        
+        clearTimeout(systemWatchdog);
+        
+        // Újraindítjuk a 25 másodperces visszaszámlálót
+        systemWatchdog = setTimeout(() => {
+            // Ha letelik a 25 mp, megjelenítjük a sötétítő modalt
+            document.getElementById('offline-modal').style.display = 'flex';
+            updateLog("⚠️ KRITIKUS HIBA: Kapcsolat megszakadt a Gerinccel!");
+            // Elszürkítjük az elavult adatokat
             document.querySelectorAll('.value, .value-ph, .value-tds, .light-sub-val').forEach(el => el.classList.add('stale-data'));
         }, WATCHDOG_TIMEOUT);
     }
 
+    client.on('connect', () => { 
+        updateLog("Online. Csatlakozva az MQTT brokerhez."); 
+        client.subscribe('aquarium/#');
+        setTimeout(() => send('aquarium/request', 'CHECK'), 1000);
+        resetSystemWatchdog(); // Induláskor is elindítjuk az órát
+    });
+
     client.on('message', (topic, message) => {
         const msg = message.toString();
         
+        // BÁRMILYEN üzenet jön az akvárium témában, az azt jelenti, hogy a hálózat él!
+        resetSystemWatchdog();
+
         if (topic === 'aquarium/status/led1') updateStatusDisplay('led1', msg);
         if (topic === 'aquarium/status/led2') updateStatusDisplay('led2', msg);
         
-        // HA MEGJÖTT AZ SD KÁRTYÁRÓL VISSZAOLVASOTT ÉRTÉK
         if (topic === 'aquarium/status/setpoint') {
             document.getElementById('ideal-temp-val').innerText = `Aktív célérték (SD kártyáról): ${msg} °C`;
-            updateLog(`Célérték frissítve az adatbázisból: ${msg}°C`);
+            updateLog(`Célérték frissítve: ${msg}°C`);
         }
 
         if (topic === 'aquarium/sensor/data') {
             try {
                 const data = JSON.parse(msg);
-                resetSensorWatchdog();
                 
                 if(data.temp !== undefined) document.getElementById('temp-val').innerText = data.temp + " °C";
                 if(data.ph !== undefined) document.getElementById('ph-val').innerText = data.ph + " pH";
@@ -245,7 +284,6 @@
         if (currentCalculatedSetpoint) { 
             send('aquarium/setpoint', currentCalculatedSetpoint); 
             document.getElementById('btn-set-temp').disabled = true;
-            // Ne feledjük, a Gerinc visszaküldi majd a megerősítést a status/setpoint topicra!
         } 
     }
     
