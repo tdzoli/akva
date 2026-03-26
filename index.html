@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AquaControl Pro Dashboard v1.4</title>
+    <title>AquaControl Pro Dashboard v1.5</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
     <style>
         :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --warning: #ffc107; --bg: #f4f7f9; --accent: #e83e8c; --check: #17a2b8; --purple: #6f42c1; --dark: #343a40; }
@@ -28,9 +28,14 @@
         .value-ph { font-size: 24px; font-weight: bold; color: var(--check); margin-top: 5px; }
         .value-tds { font-size: 24px; font-weight: bold; color: var(--purple); margin-top: 5px; }
         
-        .light-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+        /* TCS34725 Fénykiértékelő stílusok */
+        .light-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px; text-align: center; }
         .light-sub-val { font-size: 20px; font-weight: bold; color: #444; }
-        .light-msg { font-size: 12px; margin-top: 5px; font-weight: 600; min-height: 18px; }
+        .light-msg { font-size: 12px; margin-top: 5px; font-weight: 600; min-height: 18px; padding: 4px; border-radius: 4px; }
+        .rgb-container { display: flex; justify-content: space-around; font-size: 16px; font-weight: bold; margin-top: 5px; background: #f8f9fa; padding: 10px; border-radius: 8px; }
+        .msg-ok { background: #d4edda; color: #155724; }
+        .msg-warn { background: #fff3cd; color: #856404; }
+        .msg-err { background: #f8d7da; color: #721c24; }
 
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
         button { border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; color: white; font-size: 14px; }
@@ -64,7 +69,7 @@
 <body>
 
 <div class="container">
-    <h1>🌊 AquaControl Pro v1.4</h1>
+    <h1>🌊 AquaControl Pro v1.5</h1>
 
     <div class="card">
         <h3>Hálózat & Diagnosztika</h3>
@@ -95,11 +100,26 @@
     </div>
 
     <div class="card" id="light-card">
-        <h3>Fényviszonyok (TCS34725)</h3>
+        <h3>Fényviszonyok & Spektrum Elemzés</h3>
         <div class="light-grid">
-            <div><small style="color:#7f8c8d">Intenzitás</small><div id="lux-val" class="light-sub-val">-- lx</div><div id="lux-msg" class="light-msg"></div></div>
-            <div><small style="color:#7f8c8d">Spektrum</small><div id="kelvin-val" class="light-sub-val">-- K</div><div id="kelvin-msg" class="light-msg"></div></div>
+            <div>
+                <small style="color:#7f8c8d; text-transform:uppercase;">Fényerő (Lux)</small>
+                <div id="lux-val" class="light-sub-val">-- lx</div>
+                <div id="lux-msg" class="light-msg">Nincs adat</div>
+            </div>
+            <div>
+                <small style="color:#7f8c8d; text-transform:uppercase;">Színhőmérséklet</small>
+                <div id="kelvin-val" class="light-sub-val">-- K</div>
+                <div id="kelvin-msg" class="light-msg">Nincs adat</div>
+            </div>
         </div>
+        <small style="color:#7f8c8d; text-transform:uppercase;">Színspektrum eloszlás</small>
+        <div class="rgb-container">
+            <div style="color: #dc3545;">R: <span id="r-val">--</span>%</div>
+            <div style="color: #28a745;">G: <span id="g-val">--</span>%</div>
+            <div style="color: #007bff;">B: <span id="b-val">--</span>%</div>
+        </div>
+        <div id="rgb-msg" class="light-msg" style="margin-top: 8px; text-align: center;">Nincs adat</div>
     </div>
 
     <div class="card">
@@ -182,18 +202,14 @@
                 document.getElementById('light-card').classList.add('stale-data');
             }
             if(node === 'C') {
-                // Ha a Gerinc leszakad, az SD kártyát is "Ismeretlennek" tekintjük
                 const sdBadge = document.getElementById('badge-SD');
                 sdBadge.className = 'node-badge node-offline';
                 sdBadge.innerHTML = 'SD Kártya<br>ISMERETLEN';
-                
-                // SD státusz frissítése és UI elemek szürkítése
                 updateSdUI(false);
             }
         }, WATCHDOG_TIMEOUT);
     }
 
-    // Új, dedikált függvény az SD kártya UI állapotának kezelésére
     function updateSdUI(isOk) {
         isSdCardOk = isOk;
         const sdDependentElements = document.querySelectorAll('.sd-dependent');
@@ -201,20 +217,15 @@
         const resBox = document.getElementById('result-box');
 
         if (isOk) {
-            // Eltávolítjuk a szürkítést
             sdDependentElements.forEach(el => el.classList.remove('sd-disabled'));
-            
-            // Ha van már kalkulált érték, engedélyezzük a gombot
             if (currentCalculatedSetpoint) {
                 applyBtn.disabled = false;
                 resBox.innerHTML = `✅ Kalkuláció kész: ${currentCalculatedSetpoint}°C <br><small>SD kártya érzékelve, mentés lehetséges.</small>`;
                 resBox.style.background = "var(--bg)";
             }
         } else {
-            // Rátesszük a szürkítést és letiltjuk az interakciót
             sdDependentElements.forEach(el => el.classList.add('sd-disabled'));
             applyBtn.disabled = true;
-            
             if (currentCalculatedSetpoint && resBox.style.display === 'block') {
                 resBox.innerHTML = `✅ Kalkuláció kész: ${currentCalculatedSetpoint}°C <br><strong style='color:red;'>⚠️ Mentés letiltva: Nincs SD kártya!</strong>`;
             }
@@ -234,10 +245,8 @@
         if (topic === 'aquarium/health/nodeB') triggerHeartbeat('B');
         if (topic === 'aquarium/health/nodeC') triggerHeartbeat('C');
 
-        // SD Kártya hardveres megszakítás alapú státusz kezelése
         if (topic === 'aquarium/health/sdcard') {
             const sdBadge = document.getElementById('badge-SD');
-            
             if (msg === 'OK') {
                 sdBadge.className = 'node-badge node-online';
                 sdBadge.innerHTML = 'SD Kártya<br>OK';
@@ -273,15 +282,60 @@
                 if(data.ph !== undefined) document.getElementById('ph-val').innerText = data.ph + " pH";
                 if(data.tds !== undefined) document.getElementById('tds-val').innerText = data.tds + " ppm";
                 
-                if(data.lux !== undefined) {
-                    document.getElementById('lux-val').innerText = Math.round(data.lux) + " lx";
-                }
-                if(data.kelvin !== undefined) {
-                    document.getElementById('kelvin-val').innerText = Math.round(data.kelvin) + " K";
+                // TCS34725 adatok kiértékelése és megjelenítése
+                if(data.lux !== undefined && data.kelvin !== undefined) {
+                    evaluateLightData(data.lux, data.kelvin, data.r_pct, data.g_pct, data.b_pct);
                 }
             } catch(e) { console.error(e); }
         }
     });
+
+    function evaluateLightData(lux, kelvin, r, g, b) {
+        document.getElementById('lux-val').innerText = Math.round(lux) + " lx";
+        document.getElementById('kelvin-val').innerText = Math.round(kelvin) + " K";
+        
+        // Előfordulhat, hogy osztás nullával miatt NaN jön, ezt kezeljük
+        if (!isNaN(r)) document.getElementById('r-val').innerText = r.toFixed(1);
+        if (!isNaN(g)) document.getElementById('g-val').innerText = g.toFixed(1);
+        if (!isNaN(b)) document.getElementById('b-val').innerText = b.toFixed(1);
+
+        const luxMsg = document.getElementById('lux-msg');
+        const kelvinMsg = document.getElementById('kelvin-msg');
+        const rgbMsg = document.getElementById('rgb-msg');
+
+        if (lux < 10) {
+            setMsg(luxMsg, "Sötét / Éjszaka", "msg-ok");
+        } else if (lux >= 10 && lux < 100) {
+            setMsg(luxMsg, "Túl gyenge a növényeknek", "msg-warn");
+        } else if (lux >= 100 && lux <= 800) {
+            setMsg(luxMsg, "Ideális általános akváriumba", "msg-ok");
+        } else {
+            setMsg(luxMsg, "Magas intenzitás: Alga veszély!", "msg-err");
+        }
+
+        if (kelvin < 4000) {
+            setMsg(kelvinMsg, "Túl meleg/sárga: Barnaalga veszély", "msg-warn");
+        } else if (kelvin >= 4000 && kelvin <= 7500) {
+            setMsg(kelvinMsg, "Ideális nappali spektrum", "msg-ok");
+        } else {
+            setMsg(kelvinMsg, "Túl hideg/kék: Zöldalga veszély", "msg-err");
+        }
+
+        if (r < 10 && b < 10 && lux > 50) {
+            setMsg(rgbMsg, "Hiányzik a fotoszintézishez szükséges piros/kék hullámhossz!", "msg-err");
+        } else if (g > (r + b) && lux > 50) {
+            setMsg(rgbMsg, "Nem hatékony spektrum. Túl sok a visszaverődő zöld fény.", "msg-warn");
+        } else if (lux > 50) {
+            setMsg(rgbMsg, "Kiegyensúlyozott spektrum a fotoszintézishez.", "msg-ok");
+        } else {
+            setMsg(rgbMsg, "-", "msg-ok"); 
+        }
+    }
+
+    function setMsg(element, text, className) {
+        element.innerText = text;
+        element.className = "light-msg " + className;
+    }
 
     function updateStatusDisplay(ledId, state) {
         const textEl = document.getElementById('status-' + ledId);
