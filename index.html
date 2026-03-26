@@ -225,12 +225,22 @@
                 if(data.ph !== undefined) document.getElementById('ph-val').innerText = data.ph + " pH";
                 if(data.tds !== undefined) document.getElementById('tds-val').innerText = data.tds + " ppm";
                 
-                if(data.lux !== undefined) {
+if(data.lux !== undefined) {
                     const luxVal = document.getElementById('lux-val');
-                    document.getElementById('lux-val').innerText = Math.round(data.lux) + " lx";
+                    const luxMsg = document.getElementById('lux-msg');
+                    luxVal.innerText = Math.round(data.lux) + " lx";
+                    if(data.lux < 1000) { luxMsg.innerText = "⚠️ Alacsony fényerő"; luxMsg.style.color = "var(--warning)"; }
+                    else if(data.lux > 5000) { luxMsg.innerText = "⚠️ Túl erős"; luxMsg.style.color = "var(--danger)"; }
+                    else { luxMsg.innerText = "✅ Optimális"; luxMsg.style.color = "var(--success)"; }
                 }
+
                 if(data.kelvin !== undefined) {
-                    document.getElementById('kelvin-val').innerText = Math.round(data.kelvin) + " K";
+                    const kVal = document.getElementById('kelvin-val');
+                    const kMsg = document.getElementById('kelvin-msg');
+                    kVal.innerText = Math.round(data.kelvin) + " K";
+                    if(data.kelvin < 5500) { kMsg.innerText = "⚠️ Túl meleg spektrum"; kMsg.style.color = "var(--warning)"; }
+                    else if(data.kelvin > 8000) { kMsg.innerText = "⚠️ Túl hideg"; kMsg.style.color = "var(--warning)"; }
+                    else { kMsg.innerText = "✅ Ideális"; kMsg.style.color = "var(--success)"; }
                 }
             } catch(e) { console.error(e); }
         }
