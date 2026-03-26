@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AquaControl Pro Dashboard v1.0</title>
+    <title>AquaControl Pro Dashboard v1.1</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
     <style>
         :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --warning: #ffc107; --bg: #f4f7f9; --accent: #e83e8c; --check: #17a2b8; --purple: #6f42c1; --dark: #343a40; }
@@ -14,11 +14,12 @@
         .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
         .card h3 { margin: 0 0 15px 0; font-size: 13px; text-transform: uppercase; color: #7f8c8d; letter-spacing: 1px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
         
-        /* DIAGNOSZTIKA STÍLUSOK */
-        .diag-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; text-align: center; }
-        .node-badge { padding: 10px 5px; border-radius: 8px; font-weight: bold; font-size: 12px; color: white; transition: 0.3s; }
+        /* DIAGNOSZTIKA STÍLUSOK (Immár 4 oszlop) */
+        .diag-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; text-align: center; }
+        .node-badge { padding: 10px 2px; border-radius: 8px; font-weight: bold; font-size: 11px; color: white; transition: 0.3s; word-wrap: break-word; }
         .node-offline { background: var(--danger); animation: pulse 2s infinite; }
         .node-online { background: var(--success); }
+        .node-warning { background: var(--warning); color: #333; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
         .stale-data { opacity: 0.3; filter: grayscale(100%); transition: 0.5s; }
 
@@ -45,7 +46,7 @@
         .status-box { padding: 10px; border-radius: 8px; background: #f8f9fa; margin-bottom: 10px; border-left: 5px solid #ccc; transition: 0.3s; }
         .status-led { font-size: 14px; font-weight: 600; }
 
-        /* Modal stílusok a Halaknak */
+        /* Modal stílusok */
         #fish-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; }
         .modal-content { background: white; width: 90%; max-width: 500px; margin: 40px auto; border-radius: 15px; max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; }
         .modal-header, .modal-footer { padding: 15px 20px; background: #f8f9fa; }
@@ -61,15 +62,16 @@
 <body>
 
 <div class="container">
-    <h1>🌊 AquaControl Pro v1.0</h1>
+    <h1>🌊 AquaControl Pro v1.1</h1>
 
     <!-- DIAGNOSZTIKA KÁRTYA -->
     <div class="card">
-        <h3>Hálózat & Diagnosztika (Heartbeat)</h3>
+        <h3>Hálózat & Diagnosztika</h3>
         <div class="diag-grid">
-            <div id="badge-A" class="node-badge node-offline">Node A (Szenzor)<br>OFFLINE</div>
-            <div id="badge-B" class="node-badge node-offline">Node B (Vezérlés)<br>OFFLINE</div>
-            <div id="badge-C" class="node-badge node-offline">Node C (Gerinc)<br>OFFLINE</div>
+            <div id="badge-A" class="node-badge node-offline">Szenzor<br>(Node A)</div>
+            <div id="badge-B" class="node-badge node-offline">Vezérlés<br>(Node B)</div>
+            <div id="badge-C" class="node-badge node-offline">Gerinc<br>(Node C)</div>
+            <div id="badge-SD" class="node-badge node-offline">SD Kártya<br>ISMERETLEN</div>
         </div>
     </div>
 
@@ -118,8 +120,9 @@
     <div id="log">Csatlakozás folyamatban...</div>
 </div>
 
-<!-- Modal -->
+<!-- Modal ablak -->
 <div id="fish-modal">
+    <!-- Változatlan modal struktúra -->
     <div class="modal-content">
         <div class="modal-header">
             <h2 style="margin:0;">🐟 Halak kiválasztása</h2>
@@ -137,11 +140,9 @@
     let currentCalculatedSetpoint = null;
     let setpointWaitTimer = null;
     
-    // Három független Watchdog
     let wdA, wdB, wdC;
     const WATCHDOG_TIMEOUT = 25000; 
 
-    // Minta adatbázis
     const fishData = [
         {name: "Neon tetra", min: 20, max: 26}, {name: "Cardinal tetra", min: 24, max: 28},
         {name: "Guppy", min: 22, max: 28}, {name: "Platy", min: 20, max: 26},
@@ -156,15 +157,13 @@
         username: 'akva_admin', password: 'Akva123456'
     });
 
-    // Diagnosztika függvény
     function triggerHeartbeat(node) {
         const badge = document.getElementById('badge-' + node);
         badge.className = 'node-badge node-online';
-        if(node === 'A') badge.innerHTML = "Node A (Szenzor)<br>ONLINE";
-        if(node === 'B') badge.innerHTML = "Node B (Vezérlés)<br>ONLINE";
-        if(node === 'C') badge.innerHTML = "Node C (Gerinc)<br>ONLINE";
+        if(node === 'A') badge.innerHTML = "Szenzor<br>(Node A)";
+        if(node === 'B') badge.innerHTML = "Vezérlés<br>(Node B)";
+        if(node === 'C') badge.innerHTML = "Gerinc<br>(Node C)";
 
-        // Szenzor adatok színezésének visszaállítása, ha A él
         if(node === 'A') {
             document.getElementById('sensor-card').classList.remove('stale-data');
             document.getElementById('light-card').classList.remove('stale-data');
@@ -176,10 +175,14 @@
             badge.innerHTML = `Node ${node}<br>OFFLINE`;
             updateLog(`⚠️ Node ${node} kapcsolat megszakadt!`);
             
-            // Ha A esik ki, szürkítjük az adatokat
             if(node === 'A') {
                 document.getElementById('sensor-card').classList.add('stale-data');
                 document.getElementById('light-card').classList.add('stale-data');
+            }
+            // Ha a Gerinc esik le, az SD kártyát is "Ismeretlen"-re rakjuk
+            if(node === 'C') {
+                document.getElementById('badge-SD').className = 'node-badge node-offline';
+                document.getElementById('badge-SD').innerHTML = 'SD Kártya<br>ISMERETLEN';
             }
         }, WATCHDOG_TIMEOUT);
     }
@@ -193,18 +196,28 @@
     client.on('message', (topic, message) => {
         const msg = message.toString();
         
-        // HEARTBEAT FIGYELÉS
+        // JAVÍTÁS: KIZÁRÓLAG a dedikált health üzenetek indítják a Watchdogot!
         if (topic === 'aquarium/health/nodeA') triggerHeartbeat('A');
         if (topic === 'aquarium/health/nodeB') triggerHeartbeat('B');
         if (topic === 'aquarium/health/nodeC') triggerHeartbeat('C');
 
-        // Státuszok
+        // SD KÁRTYA STÁTUSZ KEZELÉSE
+        if (topic === 'aquarium/health/sdcard') {
+            const sdBadge = document.getElementById('badge-SD');
+            if (msg === 'OK') {
+                sdBadge.className = 'node-badge node-online';
+                sdBadge.innerHTML = 'SD Kártya<br>OK (Írható)';
+            } else {
+                sdBadge.className = 'node-badge node-warning';
+                sdBadge.innerHTML = 'SD Kártya<br>HIBA / NINCS';
+            }
+        }
+
         if (topic === 'aquarium/status/led1') updateStatusDisplay('led1', msg);
         if (topic === 'aquarium/status/led2') updateStatusDisplay('led2', msg);
         
-        // Célérték Nyugtázás (ACK) Node C-től
+        // A setpoint már NEM triggerezi a Heartbeat-et, így elkerüljük a "Retained" fals pozitív hibát!
         if (topic === 'aquarium/status/setpoint') {
-            triggerHeartbeat('C'); // Ha ezt küldi, biztosan él
             if (setpointWaitTimer) {
                 clearTimeout(setpointWaitTimer);
                 setpointWaitTimer = null;
@@ -216,7 +229,6 @@
             document.getElementById('ideal-temp-val').innerText = `Aktív célérték (Gerinc memóriája): ${msg} °C`;
         }
 
-        // Szenzoradat Node A-tól
         if (topic === 'aquarium/sensor/data') {
             triggerHeartbeat('A');
             try {
@@ -225,7 +237,7 @@
                 if(data.ph !== undefined) document.getElementById('ph-val').innerText = data.ph + " pH";
                 if(data.tds !== undefined) document.getElementById('tds-val').innerText = data.tds + " ppm";
                 
-if(data.lux !== undefined) {
+                if(data.lux !== undefined) {
                     const luxVal = document.getElementById('lux-val');
                     const luxMsg = document.getElementById('lux-msg');
                     luxVal.innerText = Math.round(data.lux) + " lx";
@@ -262,7 +274,7 @@ if(data.lux !== undefined) {
     function send(topic, value) { client.publish(topic, value); }
     function updateLog(txt) { document.getElementById('log').innerText = new Date().toLocaleTimeString() + ": " + txt; }
     
-    // Halak Modal és Kalkuláció
+    // Halak Modal függvények (változatlan)
     function openModal() {
         const container = document.getElementById('fish-list-container');
         container.innerHTML = fishData.sort((a,b) => a.name.localeCompare(b.name)).map(f => `
@@ -324,3 +336,4 @@ if(data.lux !== undefined) {
     }
 </script>
 </body>
+</html>
