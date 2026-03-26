@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AquaControl Pro Dashboard v0.4</title>
+    <title>AquaControl Pro Dashboard v0.5</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
     <style>
         :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --warning: #ffc107; --bg: #f4f7f9; --accent: #e83e8c; --check: #17a2b8; --purple: #6f42c1; }
@@ -11,7 +11,6 @@
         .container { max-width: 600px; margin: 0 auto; }
         h1 { color: #2c3e50; margin-bottom: 20px; text-align: center; }
         
-        /* Riasztás stílusa */
         .alert-box { background: var(--danger); color: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); animation: pulse 2s infinite; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.8; transform: scale(0.99); } 100% { opacity: 1; } }
         .stale-data { opacity: 0.3; transition: opacity 0.5s; }
@@ -43,7 +42,6 @@
         .status-box { padding: 10px; border-radius: 8px; background: #f8f9fa; margin-bottom: 10px; border-left: 5px solid #ccc; transition: 0.3s; }
         .status-led { font-size: 14px; font-weight: 600; }
 
-        /* Modal stílusok */
         #fish-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; }
         .modal-content { background: white; width: 90%; max-width: 500px; margin: 40px auto; border-radius: 15px; max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; }
         .modal-header { padding: 20px; border-bottom: 1px solid #eee; }
@@ -63,10 +61,10 @@
 <body>
 
 <div class="container">
-    <h1>🌊 AquaControl Pro v0.4</h1>
+    <h1>🌊 AquaControl Pro v0.5</h1>
 
     <div id="system-alert" class="alert-box" style="display: none;">
-        ⚠️ KRITIKUS HIBA: A Szenzor Node (Node A) nem küld adatot!
+        ⚠️ KRITIKUS HIBA: A Szenzor Node nem küld adatot!
     </div>
 
     <div class="card">
@@ -86,7 +84,8 @@
             </div>
         </div>
         
-        <div id="ideal-temp-val" style="color: var(--success); font-weight: bold; margin-top: 10px; font-size: 16px;"></div>
+        <!-- IDE KERÜL A VISSZAOLVASOTT SETPOINT -->
+        <div id="ideal-temp-val" style="color: var(--success); font-weight: bold; margin-top: 10px; font-size: 16px;">Aktív célérték: Nincs beállítva</div>
         <div id="result-box"></div>
         
         <button class="btn-main" onclick="openModal()">🐟 Halak Kiválasztása</button>
@@ -120,7 +119,7 @@
             <button class="btn-on" onclick="send('aquarium/control', '2')">2. BE</button>
             <button class="btn-off" onclick="send('aquarium/control', '3')">2. KI</button>
         </div>
-        <button class="btn-check" onclick="send('aquarium/request', 'CHECK')">🔍 Állapot ellenőrzése</button>
+        <button class="btn-check" onclick="send('aquarium/request', 'CHECK')">🔍 Rendszerállapot szinkronizálása</button>
     </div>
 
     <div class="card">
@@ -131,6 +130,7 @@
     <div id="log">Csatlakozás folyamatban...</div>
 </div>
 
+<!-- Modal ablak a halaknak (változatlan) -->
 <div id="fish-modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -148,7 +148,7 @@
 <script>
     let currentCalculatedSetpoint = null;
     let sensorWatchdog;
-    const WATCHDOG_TIMEOUT = 25000; // 25 mp
+    const WATCHDOG_TIMEOUT = 25000; 
 
     const fishData = [
         {name: "Neon tetra", min: 20, max: 26}, {name: "Cardinal tetra", min: 24, max: 28},
@@ -167,14 +167,13 @@
     client.on('connect', () => { 
         updateLog("Online"); 
         client.subscribe('aquarium/#');
+        // Kérjük a rendszertől az utolsó ismert állapotokat és a lementett hőfokot!
         setTimeout(() => send('aquarium/request', 'CHECK'), 1000);
     });
 
-    // WATCHDOG KEZELŐ FÜGGVÉNY
     function resetSensorWatchdog() {
         document.getElementById('system-alert').style.display = 'none';
         document.querySelectorAll('.value, .value-ph, .value-tds, .light-sub-val').forEach(el => el.classList.remove('stale-data'));
-        
         clearTimeout(sensorWatchdog);
         sensorWatchdog = setTimeout(() => {
             document.getElementById('system-alert').style.display = 'block';
@@ -188,25 +187,26 @@
         
         if (topic === 'aquarium/status/led1') updateStatusDisplay('led1', msg);
         if (topic === 'aquarium/status/led2') updateStatusDisplay('led2', msg);
+        
+        // HA MEGJÖTT AZ SD KÁRTYÁRÓL VISSZAOLVASOTT ÉRTÉK
+        if (topic === 'aquarium/status/setpoint') {
+            document.getElementById('ideal-temp-val').innerText = `Aktív célérték (SD kártyáról): ${msg} °C`;
+            updateLog(`Célérték frissítve az adatbázisból: ${msg}°C`);
+        }
 
         if (topic === 'aquarium/sensor/data') {
             try {
                 const data = JSON.parse(msg);
-                
-                // ÚJ ADAT ÉRKEZETT -> WATCHDOG NULLÁZÁSA
                 resetSensorWatchdog();
                 
-                // Vízminőség
                 if(data.temp !== undefined) document.getElementById('temp-val').innerText = data.temp + " °C";
                 if(data.ph !== undefined) document.getElementById('ph-val').innerText = data.ph + " pH";
                 if(data.tds !== undefined) document.getElementById('tds-val').innerText = data.tds + " ppm";
                 
-                // Világítás
                 if(data.lux !== undefined) {
                     const luxVal = document.getElementById('lux-val');
                     const luxMsg = document.getElementById('lux-msg');
                     luxVal.innerText = Math.round(data.lux) + " lx";
-                    
                     if(data.lux < 1000) { luxMsg.innerText = "⚠️ Alacsony fényerő"; luxMsg.style.color = "var(--warning)"; }
                     else if(data.lux > 5000) { luxMsg.innerText = "⚠️ Túl erős"; luxMsg.style.color = "var(--danger)"; }
                     else { luxMsg.innerText = "✅ Optimális"; luxMsg.style.color = "var(--success)"; }
@@ -216,12 +216,10 @@
                     const kVal = document.getElementById('kelvin-val');
                     const kMsg = document.getElementById('kelvin-msg');
                     kVal.innerText = Math.round(data.kelvin) + " K";
-
                     if(data.kelvin < 5500) { kMsg.innerText = "⚠️ Túl meleg spektrum"; kMsg.style.color = "var(--warning)"; }
-                    else if(data.kelvin > 8000) { kMsg.innerText = "⚠️ Túl hideg (kék)"; kMsg.style.color = "var(--warning)"; }
+                    else if(data.kelvin > 8000) { kMsg.innerText = "⚠️ Túl hideg"; kMsg.style.color = "var(--warning)"; }
                     else { kMsg.innerText = "✅ Ideális"; kMsg.style.color = "var(--success)"; }
                 }
-
             } catch(e) { console.error("JSON hiba: ", e); }
         }
     });
@@ -242,7 +240,15 @@
     }
 
     function send(topic, value) { client.publish(topic, value); updateLog("Küldve: " + value); }
-    function applyTemperature() { if (currentCalculatedSetpoint) { send('aquarium/setpoint', currentCalculatedSetpoint); document.getElementById('btn-set-temp').disabled = true; } }
+    
+    function applyTemperature() { 
+        if (currentCalculatedSetpoint) { 
+            send('aquarium/setpoint', currentCalculatedSetpoint); 
+            document.getElementById('btn-set-temp').disabled = true;
+            // Ne feledjük, a Gerinc visszaküldi majd a megerősítést a status/setpoint topicra!
+        } 
+    }
+    
     function updateLog(txt) { document.getElementById('log').innerText = new Date().toLocaleTimeString() + ": " + txt; }
     
     function openModal() {
@@ -274,19 +280,16 @@
             if (min > cMin) cMin = min; if (max < cMax) cMax = max;
         });
         const res = document.getElementById('result-box');
-        const idealText = document.getElementById('ideal-temp-val');
         const applyBtn = document.getElementById('btn-set-temp');
         res.style.display = 'block';
         if (cMin > cMax) {
             res.className = 'alert-warning';
             res.innerHTML = `⚠️ Hiba! Nem összeegyeztethető igények!`;
-            idealText.innerText = "";
             applyBtn.disabled = true;
         } else {
             currentCalculatedSetpoint = ((cMin + cMax) / 2).toFixed(1);
             res.className = 'alert-success';
-            res.innerHTML = `✅ Kalkuláció kész! Tartomány: ${cMin}-${cMax}°C.`;
-            idealText.innerText = `Számolt ideális hőfok: ${currentCalculatedSetpoint} °C`;
+            res.innerHTML = `✅ Kalkuláció kész! Tartomány: ${cMin}-${cMax}°C.<br>Kalkulált középérték: ${currentCalculatedSetpoint}°C`;
             applyBtn.disabled = false;
         }
         closeModal();
