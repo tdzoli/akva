@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AquaControl Pro Dashboard v1.2</title>
+    <title>AquaControl Pro Dashboard v1.3</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
     <style>
         :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --warning: #ffc107; --bg: #f4f7f9; --accent: #e83e8c; --check: #17a2b8; --purple: #6f42c1; --dark: #343a40; }
@@ -60,7 +60,7 @@
 <body>
 
 <div class="container">
-    <h1>🌊 AquaControl Pro v1.2</h1>
+    <h1>🌊 AquaControl Pro v1.3</h1>
 
     <div class="card">
         <h3>Hálózat & Diagnosztika</h3>
@@ -131,7 +131,7 @@
 <script>
     let currentCalculatedSetpoint = null;
     let setpointWaitTimer = null;
-    let isSdCardOk = false; // Globális változó az SD kártya állapotának
+    let isSdCardOk = false; 
     
     let wdA, wdB, wdC;
     const WATCHDOG_TIMEOUT = 25000; 
@@ -194,21 +194,33 @@
         if (topic === 'aquarium/health/nodeB') triggerHeartbeat('B');
         if (topic === 'aquarium/health/nodeC') triggerHeartbeat('C');
 
-        // SD KÁRTYA STÁTUSZ KEZELÉSE (Szigorított)
+        // SD Kártya státusz kezelése, immár megszakítás alapú rendszerből
         if (topic === 'aquarium/health/sdcard') {
             const sdBadge = document.getElementById('badge-SD');
             const applyBtn = document.getElementById('btn-set-temp');
+            const resBox = document.getElementById('result-box');
             
             if (msg === 'OK') {
                 sdBadge.className = 'node-badge node-online';
                 sdBadge.innerHTML = 'SD Kártya<br>OK';
                 isSdCardOk = true;
-                if (currentCalculatedSetpoint) applyBtn.disabled = false; // Ha van kalkuláció, engedélyezzük
+                
+                // Ha volt egy sikeres kalkuláció, engedélyezzük a mentés gombot a kártya behelyezésekor
+                if (currentCalculatedSetpoint) {
+                    applyBtn.disabled = false;
+                    resBox.innerHTML = `✅ Kalkuláció kész: ${currentCalculatedSetpoint}°C <br><small>SD kártya érzékelve, mentés lehetséges.</small>`;
+                    resBox.style.background = "var(--bg)";
+                }
             } else {
                 sdBadge.className = 'node-badge node-warning';
                 sdBadge.innerHTML = 'SD Kártya<br>HIBA / NINCS';
                 isSdCardOk = false;
-                applyBtn.disabled = true; // Hardveresen blokkolva
+                applyBtn.disabled = true;
+                
+                if (currentCalculatedSetpoint && resBox.style.display === 'block') {
+                    resBox.innerHTML = `✅ Kalkuláció kész: ${currentCalculatedSetpoint}°C <br><strong style='color:red;'>⚠️ Mentés letiltva: Nincs SD kártya!</strong>`;
+                    resBox.style.background = "var(--warning)";
+                }
             }
         }
 
@@ -221,6 +233,7 @@
                 setpointWaitTimer = null;
                 const res = document.getElementById('result-box');
                 res.style.background = "var(--success)";
+                res.style.color = "white";
                 res.innerHTML = `✅ Célérték elmentve az SD kártyára!`;
                 if(isSdCardOk) document.getElementById('btn-set-temp').disabled = false;
             }
@@ -290,18 +303,21 @@
         });
         const res = document.getElementById('result-box');
         res.style.display = 'block';
+        res.style.color = "#333";
         
         if (cMin > cMax) {
-            res.style.background = "var(--warning)"; res.innerHTML = `⚠️ Hiba: Nem összeegyeztethető!`;
+            res.style.background = "var(--warning)"; 
+            res.innerHTML = `⚠️ Hiba: Nem összeegyeztethető halak!`;
             document.getElementById('btn-set-temp').disabled = true;
         } else {
             currentCalculatedSetpoint = ((cMin + cMax) / 2).toFixed(1);
-            res.style.background = "var(--bg)"; res.innerHTML = `✅ Kalkuláció kész: ${currentCalculatedSetpoint}°C`;
-            // CSAK AKKOR engedjük megnyomni, ha az SD kártya is OK!
             if(isSdCardOk) {
+                res.style.background = "var(--bg)"; 
+                res.innerHTML = `✅ Kalkuláció kész: ${currentCalculatedSetpoint}°C`;
                 document.getElementById('btn-set-temp').disabled = false;
             } else {
-                res.innerHTML += "<br><strong style='color:red;'>⚠️ Mentés letiltva: Nincs SD kártya!</strong>";
+                res.style.background = "var(--warning)"; 
+                res.innerHTML = `✅ Kalkuláció kész: ${currentCalculatedSetpoint}°C <br><strong style='color:red;'>⚠️ Mentés letiltva: Nincs SD kártya!</strong>`;
                 document.getElementById('btn-set-temp').disabled = true;
             }
         }
@@ -309,17 +325,23 @@
     }
 
     function applyTemperature() { 
-        if (currentCalculatedSetpoint && isSdCardOk) { 
+        // Szoftveres reteszelés végső ellenőrzése MQTT küldés előtt
+        if (!isSdCardOk) {
+            alert("Biztonsági blokkolás: Az SD kártya nincs csatlakoztatva, az adat nem menthető biztonságosan.");
+            return;
+        }
+
+        if (currentCalculatedSetpoint) { 
             const applyBtn = document.getElementById('btn-set-temp');
             const res = document.getElementById('result-box');
             
             applyBtn.disabled = true;
             res.style.background = "var(--warning)";
+            res.style.color = "#333";
             res.innerHTML = `⏳ Várakozás a Gerinc (Node C) megerősítésére...`;
             
             send('aquarium/setpoint', currentCalculatedSetpoint); 
             
-            // Ha a Gerinc nem válaszol 5 másodpercen belül, vagy az írás szoftveresen elhasalt:
             setpointWaitTimer = setTimeout(() => {
                 res.style.background = "var(--danger)"; res.style.color = "white";
                 res.innerHTML = `⚠️ HIBA: A mentés sikertelen! A Gerinc megtagadta a fájlírást, vagy nem válaszol.`;
