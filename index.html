@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AquaControl Pro Dashboard v1.5</title>
+    <title>AquaControl Pro Dashboard v1.6</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
     <style>
         :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --warning: #ffc107; --bg: #f4f7f9; --accent: #e83e8c; --check: #17a2b8; --purple: #6f42c1; --dark: #343a40; }
@@ -28,7 +28,6 @@
         .value-ph { font-size: 24px; font-weight: bold; color: var(--check); margin-top: 5px; }
         .value-tds { font-size: 24px; font-weight: bold; color: var(--purple); margin-top: 5px; }
         
-        /* TCS34725 Fénykiértékelő stílusok */
         .light-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px; text-align: center; }
         .light-sub-val { font-size: 20px; font-weight: bold; color: #444; }
         .light-msg { font-size: 12px; margin-top: 5px; font-weight: 600; min-height: 18px; padding: 4px; border-radius: 4px; }
@@ -38,6 +37,12 @@
         .msg-err { background: #f8d7da; color: #721c24; }
 
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+        
+        /* ÚJ: Beállítások gridje */
+        .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; margin-bottom: 15px;}
+        .settings-grid input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; margin-top: 4px;}
+        .settings-full { grid-column: span 2; }
+        
         button { border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; color: white; font-size: 14px; }
         .btn-on { background: var(--success); }
         .btn-off { background: var(--dark); }
@@ -50,7 +55,6 @@
         .status-box { padding: 10px; border-radius: 8px; background: #f8f9fa; margin-bottom: 10px; border-left: 5px solid #ccc; transition: 0.3s; }
         .status-led { font-size: 14px; font-weight: 600; }
 
-        /* SD Kártya függő elemek stílusai */
         .sd-dependent { transition: all 0.4s ease-in-out; }
         .sd-disabled { filter: grayscale(100%); opacity: 0.4; pointer-events: none; cursor: not-allowed; border: 1px dashed #999; }
 
@@ -69,7 +73,7 @@
 <body>
 
 <div class="container">
-    <h1>🌊 AquaControl Pro v1.5</h1>
+    <h1>🌊 AquaControl Pro v1.6</h1>
 
     <div class="card">
         <h3>Hálózat & Diagnosztika</h3>
@@ -93,11 +97,11 @@
         <div id="result-box" class="sd-dependent"></div>
         
         <button class="btn-main" onclick="openModal()">🐟 Halak Kiválasztása</button>
-        <button id="btn-set-temp" class="btn-action sd-dependent" onclick="applyTemperature()" disabled>⚙️ Ideális hőmérséklet beállítása</button>
+        <button id="btn-set-temp" class="btn-action sd-dependent" onclick="applyTemperature()" disabled>⚙️ Ideális hőmérséklet mentése SD-re</button>
     </div>
 
     <div class="card" id="light-card">
-        <h3>Fényviszonyok & Spektrum Elemzés</h3>
+        <h3>Fényviszonyok & Spektrum</h3>
         <div class="light-grid">
             <div>
                 <small style="color:#7f8c8d; text-transform:uppercase;">Fényerő (Lux)</small>
@@ -110,13 +114,32 @@
                 <div id="kelvin-msg" class="light-msg">Nincs adat</div>
             </div>
         </div>
-        <small style="color:#7f8c8d; text-transform:uppercase;">Színspektrum eloszlás</small>
         <div class="rgb-container">
             <div style="color: #dc3545;">R: <span id="r-val">--</span>%</div>
             <div style="color: #28a745;">G: <span id="g-val">--</span>%</div>
             <div style="color: #007bff;">B: <span id="b-val">--</span>%</div>
         </div>
         <div id="rgb-msg" class="light-msg" style="margin-top: 8px; text-align: center;">Nincs adat</div>
+    </div>
+
+    <div class="card sd-dependent">
+        <h3>Telegram Értesítések & Határértékek</h3>
+        <div class="settings-grid">
+            <div class="settings-full">
+                <small style="color:#7f8c8d; font-weight:bold;">Telegram Chat ID (üresen hagyható):</small>
+                <input type="text" id="chat-id" placeholder="Pl: 123456789">
+            </div>
+            <div><small style="font-weight:bold;">Hőmérséklet Min (°C)</small><input type="number" id="t-min" step="0.1"></div>
+            <div><small style="font-weight:bold;">Hőmérséklet Max (°C)</small><input type="number" id="t-max" step="0.1"></div>
+            <div><small style="font-weight:bold;">pH Min</small><input type="number" id="ph-min" step="0.1"></div>
+            <div><small style="font-weight:bold;">pH Max</small><input type="number" id="ph-max" step="0.1"></div>
+            <div><small style="font-weight:bold;">TDS Min (ppm)</small><input type="number" id="tds-min"></div>
+            <div><small style="font-weight:bold;">TDS Max (ppm)</small><input type="number" id="tds-max"></div>
+            <div><small style="font-weight:bold;">Lux Min</small><input type="number" id="lux-min"></div>
+            <div><small style="font-weight:bold;">Lux Max</small><input type="number" id="lux-max"></div>
+        </div>
+        <button id="btn-save-settings" class="btn-action sd-dependent" onclick="saveAllSettings()" disabled>💾 Határértékek mentése SD-re</button>
+        <div id="settings-result" style="display:none; margin-top:10px; font-weight:bold; font-size:14px; padding:10px; border-radius:8px;"></div>
     </div>
 
     <div class="card">
@@ -158,9 +181,14 @@
     let currentCalculatedSetpoint = null;
     let setpointWaitTimer = null;
     let isSdCardOk = false; 
-    
     let wdA, wdB, wdC;
     const WATCHDOG_TIMEOUT = 25000; 
+
+    // ÚJ: Kombinált állapot tároló
+    let sysSettings = {
+        setpoint: 25.0, tMin: 20.0, tMax: 28.0, phMin: 6.0, phMax: 8.0,
+        tdsMin: 0, tdsMax: 1000, luxMin: 0, luxMax: 10000, chatId: "0"
+    };
 
     const fishData = [
         {name: "Neon tetra", min: 20, max: 26}, {name: "Cardinal tetra", min: 24, max: 28},
@@ -211,10 +239,12 @@
         isSdCardOk = isOk;
         const sdDependentElements = document.querySelectorAll('.sd-dependent');
         const applyBtn = document.getElementById('btn-set-temp');
+        const saveSettingsBtn = document.getElementById('btn-save-settings');
         const resBox = document.getElementById('result-box');
 
         if (isOk) {
             sdDependentElements.forEach(el => el.classList.remove('sd-disabled'));
+            saveSettingsBtn.disabled = false;
             if (currentCalculatedSetpoint) {
                 applyBtn.disabled = false;
                 resBox.innerHTML = `✅ Kalkuláció kész: ${currentCalculatedSetpoint}°C <br><small>SD kártya érzékelve, mentés lehetséges.</small>`;
@@ -222,6 +252,7 @@
             }
         } else {
             sdDependentElements.forEach(el => el.classList.add('sd-disabled'));
+            saveSettingsBtn.disabled = true;
             applyBtn.disabled = true;
             if (currentCalculatedSetpoint && resBox.style.display === 'block') {
                 resBox.innerHTML = `✅ Kalkuláció kész: ${currentCalculatedSetpoint}°C <br><strong style='color:red;'>⚠️ Mentés letiltva: Nincs SD kártya!</strong>`;
@@ -258,17 +289,48 @@
         if (topic === 'aquarium/status/led1') updateStatusDisplay('led1', msg);
         if (topic === 'aquarium/status/led2') updateStatusDisplay('led2', msg);
         
-        if (topic === 'aquarium/status/setpoint') {
-            if (setpointWaitTimer) {
-                clearTimeout(setpointWaitTimer);
-                setpointWaitTimer = null;
-                const res = document.getElementById('result-box');
-                res.style.background = "var(--success)";
-                res.style.color = "white";
-                res.innerHTML = `✅ Célérték elmentve az SD kártyára!`;
-                if(isSdCardOk) document.getElementById('btn-set-temp').disabled = false;
+        // ÚJ: A teljes beállítás csomag feldolgozása a mikrokontrollertől
+        if (topic === 'aquarium/settings/state') {
+            const parts = msg.split(';');
+            if (parts.length >= 10) {
+                sysSettings.setpoint = parseFloat(parts[0]);
+                document.getElementById('ideal-temp-val').innerText = `Aktív célérték (Gerinc memóriája): ${sysSettings.setpoint} °C`;
+                
+                document.getElementById('t-min').value = parts[1];
+                document.getElementById('t-max').value = parts[2];
+                document.getElementById('ph-min').value = parts[3];
+                document.getElementById('ph-max').value = parts[4];
+                document.getElementById('tds-min').value = parts[5];
+                document.getElementById('tds-max').value = parts[6];
+                document.getElementById('lux-min').value = parts[7];
+                document.getElementById('lux-max').value = parts[8];
+                document.getElementById('chat-id').value = parts[9] === "0" ? "" : parts[9];
+                
+                // Visszajelzés a gombokhoz, ha vártunk rá
+                if (setpointWaitTimer) {
+                    clearTimeout(setpointWaitTimer);
+                    setpointWaitTimer = null;
+                    
+                    const res = document.getElementById('result-box');
+                    if (res.style.display !== "none") {
+                        res.style.background = "var(--success)";
+                        res.style.color = "white";
+                        res.innerHTML = `✅ Célérték elmentve az SD kártyára!`;
+                    }
+                    
+                    const sRes = document.getElementById('settings-result');
+                    if (sRes.style.display !== "none") {
+                        sRes.style.background = "var(--success)";
+                        sRes.style.color = "white";
+                        sRes.innerHTML = `✅ Határértékek sikeresen elmentve az SD kártyára!`;
+                    }
+                    
+                    if(isSdCardOk) {
+                        document.getElementById('btn-set-temp').disabled = false;
+                        document.getElementById('btn-save-settings').disabled = false;
+                    }
+                }
             }
-            document.getElementById('ideal-temp-val').innerText = `Aktív célérték (Gerinc memóriája): ${msg} °C`;
         }
 
         if (topic === 'aquarium/sensor/data') {
@@ -280,7 +342,6 @@
                 if(data.tds !== undefined) document.getElementById('tds-val').innerText = data.tds + " ppm";
                 
                 if(data.lux !== undefined && data.kelvin !== undefined) {
-                    // Biztonsági ellenőrzés: Ha undefined az RGB, akkor 0-nak vesszük, de nálunk a szenzor most már küldi!
                     let r = data.r_pct !== undefined ? data.r_pct : 0;
                     let g = data.g_pct !== undefined ? data.g_pct : 0;
                     let b = data.b_pct !== undefined ? data.b_pct : 0;
@@ -290,10 +351,64 @@
         }
     });
 
+    // ÚJ: Közös String építő a mentésekhez
+    function buildSettingsString() {
+        let cid = document.getElementById('chat-id').value.trim();
+        if(cid === "") cid = "0";
+        return `${sysSettings.setpoint};${document.getElementById('t-min').value || 0};${document.getElementById('t-max').value || 0};${document.getElementById('ph-min').value || 0};${document.getElementById('ph-max').value || 0};${document.getElementById('tds-min').value || 0};${document.getElementById('tds-max').value || 0};${document.getElementById('lux-min').value || 0};${document.getElementById('lux-max').value || 0};${cid}`;
+    }
+
+    // ÚJ: Határértékek mentése
+    function saveAllSettings() {
+        if (!isSdCardOk) return;
+        const btn = document.getElementById('btn-save-settings');
+        const res = document.getElementById('settings-result');
+        
+        btn.disabled = true;
+        res.style.display = "block";
+        res.style.background = "var(--warning)";
+        res.style.color = "#333";
+        res.innerHTML = `⏳ Várakozás a Gerinc (Node C) megerősítésére...`;
+        
+        send('aquarium/settings/set', buildSettingsString()); 
+        
+        setpointWaitTimer = setTimeout(() => {
+            res.style.background = "var(--danger)"; res.style.color = "white";
+            res.innerHTML = `⚠️ HIBA: A mentés sikertelen! A Gerinc megtagadta a fájlírást, vagy nem válaszol.`;
+            if(isSdCardOk) btn.disabled = false; 
+            setpointWaitTimer = null;
+        }, 5000);
+    }
+
+    // FRISSÍTETT: Ideális hőmérséklet mentése
+    function applyTemperature() { 
+        if (!isSdCardOk) return;
+
+        if (currentCalculatedSetpoint) { 
+            sysSettings.setpoint = currentCalculatedSetpoint; // Beírjuk a memóriába
+            const applyBtn = document.getElementById('btn-set-temp');
+            const res = document.getElementById('result-box');
+            
+            applyBtn.disabled = true;
+            res.style.background = "var(--warning)";
+            res.style.color = "#333";
+            res.innerHTML = `⏳ Várakozás a Gerinc (Node C) megerősítésére...`;
+            
+            // Elkükldjük a teljes kombinált sorozatot
+            send('aquarium/settings/set', buildSettingsString()); 
+            
+            setpointWaitTimer = setTimeout(() => {
+                res.style.background = "var(--danger)"; res.style.color = "white";
+                res.innerHTML = `⚠️ HIBA: A mentés sikertelen!`;
+                if(isSdCardOk) applyBtn.disabled = false; 
+                setpointWaitTimer = null;
+            }, 5000);
+        } 
+    }
+
     function evaluateLightData(lux, kelvin, r, g, b) {
         document.getElementById('lux-val').innerText = Math.round(lux) + " lx";
         document.getElementById('kelvin-val').innerText = Math.round(kelvin) + " K";
-        
         if (!isNaN(r)) document.getElementById('r-val').innerText = r.toFixed(1);
         if (!isNaN(g)) document.getElementById('g-val').innerText = g.toFixed(1);
         if (!isNaN(b)) document.getElementById('b-val').innerText = b.toFixed(1);
@@ -302,38 +417,23 @@
         const kelvinMsg = document.getElementById('kelvin-msg');
         const rgbMsg = document.getElementById('rgb-msg');
 
-        if (lux < 10) {
-            setMsg(luxMsg, "Sötét / Éjszaka", "msg-ok");
-        } else if (lux >= 10 && lux < 100) {
-            setMsg(luxMsg, "Túl gyenge a növényeknek", "msg-warn");
-        } else if (lux >= 100 && lux <= 800) {
-            setMsg(luxMsg, "Ideális általános akváriumba", "msg-ok");
-        } else {
-            setMsg(luxMsg, "Magas intenzitás: Alga veszély!", "msg-err");
-        }
+        if (lux < 10) setMsg(luxMsg, "Sötét / Éjszaka", "msg-ok");
+        else if (lux >= 10 && lux < 100) setMsg(luxMsg, "Túl gyenge a növényeknek", "msg-warn");
+        else if (lux >= 100 && lux <= 800) setMsg(luxMsg, "Ideális általános akváriumba", "msg-ok");
+        else setMsg(luxMsg, "Magas intenzitás: Alga veszély!", "msg-err");
 
-        if (kelvin < 4000) {
-            setMsg(kelvinMsg, "Túl meleg/sárga: Barnaalga veszély", "msg-warn");
-        } else if (kelvin >= 4000 && kelvin <= 7500) {
-            setMsg(kelvinMsg, "Ideális nappali spektrum", "msg-ok");
-        } else {
-            setMsg(kelvinMsg, "Túl hideg/kék: Zöldalga veszély", "msg-err");
-        }
+        if (kelvin < 4000) setMsg(kelvinMsg, "Túl meleg/sárga: Barnaalga veszély", "msg-warn");
+        else if (kelvin >= 4000 && kelvin <= 7500) setMsg(kelvinMsg, "Ideális nappali spektrum", "msg-ok");
+        else setMsg(kelvinMsg, "Túl hideg/kék: Zöldalga veszély", "msg-err");
 
-        if (r < 10 && b < 10 && lux > 50) {
-            setMsg(rgbMsg, "Hiányzik a fotoszintézishez szükséges piros/kék hullámhossz!", "msg-err");
-        } else if (g > (r + b) && lux > 50) {
-            setMsg(rgbMsg, "Nem hatékony spektrum. Túl sok a visszaverődő zöld fény.", "msg-warn");
-        } else if (lux > 50) {
-            setMsg(rgbMsg, "Kiegyensúlyozott spektrum a fotoszintézishez.", "msg-ok");
-        } else {
-            setMsg(rgbMsg, "-", "msg-ok"); 
-        }
+        if (r < 10 && b < 10 && lux > 50) setMsg(rgbMsg, "Hiányzik a fotoszintézishez szükséges piros/kék hullámhossz!", "msg-err");
+        else if (g > (r + b) && lux > 50) setMsg(rgbMsg, "Nem hatékony spektrum. Túl sok a visszaverődő zöld fény.", "msg-warn");
+        else if (lux > 50) setMsg(rgbMsg, "Kiegyensúlyozott spektrum a fotoszintézishez.", "msg-ok");
+        else setMsg(rgbMsg, "-", "msg-ok"); 
     }
 
     function setMsg(element, text, className) {
-        element.innerText = text;
-        element.className = "light-msg " + className;
+        element.innerText = text; element.className = "light-msg " + className;
     }
 
     function updateStatusDisplay(ledId, state) {
@@ -341,11 +441,9 @@
         const boxEl = document.getElementById('box-' + ledId);
         const label = ledId === 'led1' ? 'Lámpa 1' : 'Lámpa 2';
         if (state === "1") {
-            textEl.innerText = label + ": BEKAPCSOLVA";
-            boxEl.style.borderLeftColor = "var(--success)";
+            textEl.innerText = label + ": BEKAPCSOLVA"; boxEl.style.borderLeftColor = "var(--success)";
         } else {
-            textEl.innerText = label + ": KIKAPCSOLVA";
-            boxEl.style.borderLeftColor = "var(--danger)";
+            textEl.innerText = label + ": KIKAPCSOLVA"; boxEl.style.borderLeftColor = "var(--danger)";
         }
     }
 
@@ -384,48 +482,19 @@
         res.style.color = "#333";
         
         if (cMin > cMax) {
-            res.style.background = "var(--warning)"; 
-            res.innerHTML = `⚠️ Hiba: Nem összeegyeztethető halak!`;
+            res.style.background = "var(--warning)"; res.innerHTML = `⚠️ Hiba: Nem összeegyeztethető halak!`;
             document.getElementById('btn-set-temp').disabled = true;
         } else {
             currentCalculatedSetpoint = ((cMin + cMax) / 2).toFixed(1);
             if(isSdCardOk) {
-                res.style.background = "var(--bg)"; 
-                res.innerHTML = `✅ Kalkuláció kész: ${currentCalculatedSetpoint}°C`;
+                res.style.background = "var(--bg)"; res.innerHTML = `✅ Kalkuláció kész: ${currentCalculatedSetpoint}°C`;
                 document.getElementById('btn-set-temp').disabled = false;
             } else {
-                res.style.background = "var(--warning)"; 
-                res.innerHTML = `✅ Kalkuláció kész: ${currentCalculatedSetpoint}°C <br><strong style='color:red;'>⚠️ Mentés letiltva: Nincs SD kártya!</strong>`;
+                res.style.background = "var(--warning)"; res.innerHTML = `✅ Kalkuláció kész: ${currentCalculatedSetpoint}°C <br><strong style='color:red;'>⚠️ Mentés letiltva: Nincs SD kártya!</strong>`;
                 document.getElementById('btn-set-temp').disabled = true;
             }
         }
         closeModal();
-    }
-
-    function applyTemperature() { 
-        if (!isSdCardOk) {
-            alert("Biztonsági blokkolás: Az SD kártya nincs csatlakoztatva.");
-            return;
-        }
-
-        if (currentCalculatedSetpoint) { 
-            const applyBtn = document.getElementById('btn-set-temp');
-            const res = document.getElementById('result-box');
-            
-            applyBtn.disabled = true;
-            res.style.background = "var(--warning)";
-            res.style.color = "#333";
-            res.innerHTML = `⏳ Várakozás a Gerinc (Node C) megerősítésére...`;
-            
-            send('aquarium/setpoint', currentCalculatedSetpoint); 
-            
-            setpointWaitTimer = setTimeout(() => {
-                res.style.background = "var(--danger)"; res.style.color = "white";
-                res.innerHTML = `⚠️ HIBA: A mentés sikertelen! A Gerinc megtagadta a fájlírást, vagy nem válaszol.`;
-                if(isSdCardOk) applyBtn.disabled = false; 
-                setpointWaitTimer = null;
-            }, 5000);
-        } 
     }
 </script>
 </body>
