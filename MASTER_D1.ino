@@ -43,8 +43,27 @@ String chatId = "0";
 unsigned long lastHeartbeat = 0;
 unsigned long lastTelegramCheck = 0; 
 
-// ÚJ: Változó a boot üzenet egyszeri elküldéséhez
+// ÚJ: Boot üzenet egyszeri elküldéséhez
 bool isFirstBoot = true;
+
+// ÚJ: Telegram üzenetsor (nem blokkoló küldéshez)
+// -------------------------------------------------
+// A régi megoldásban a sendTelegramMessage() azonnal bontotta az MQTT-t,
+// létrehozott egy TLS kapcsolatot a Telegram API felé, és megvárta a választ.
+// Ez 3-10 másodpercig blokkolta a loop()-ot, ami alatt:
+//   - Az ESP-NOW callback-ből érkező szenzor-adatok elveszhettek
+//   - A heartbeat kimaradt → a dashboard OFFLINE-nak látta Node C-t
+//   - Az MQTT keep-alive lejárhatott → a broker bontotta a kapcsolatot
+//
+// Új megoldás: A Telegram üzeneteket egy FIFO sorba (queue) tesszük,
+// és a loop() minden körében csak EGYET küldünk el, ha van várakozó.
+// Így a blokkolás max. 1 üzenetre korlátozódik, és a többi funkció
+// (heartbeat, ESP-NOW, MQTT) a következő loop iterációban azonnal fut.
+const int TELEGRAM_QUEUE_SIZE = 5;
+String telegramQueue[TELEGRAM_QUEUE_SIZE];
+int telegramQueueHead = 0;  // Következő olvasási pozíció
+int telegramQueueTail = 0;  // Következő írási pozíció
+int telegramQueueCount = 0; // Aktuális elemszám
 
 typedef struct sensor_data_struct {
   float temp;
@@ -75,13 +94,37 @@ String getValue(String data, char separator, int index) {
   return found > index ? data.substring(strIndex[0], strIndex[1]) : "";
 }
 
-// Memória-optimalizált Telegram üzenetküldő (Multiplexálással)
-void sendTelegramMessage(String text) {
+// ÚJ: Üzenet hozzáadása a Telegram sorhoz
+// Ha a sor tele van, a legrégebbi üzenetet eldobjuk (felülírjuk).
+void queueTelegramMessage(String text) {
   if (chatId == "" || chatId == "0") return;
   
-  Serial.println("[Telegram] Memoria felszabaditasa: MQTT (HiveMQ) kapcsolat atmeneti bontasa...");
+  if (telegramQueueCount >= TELEGRAM_QUEUE_SIZE) {
+    // Sor tele → legrégebbi eldobása
+    Serial.println("[Telegram] FIGYELEM: Sor tele, legregebbi uzenet eldobva!");
+    telegramQueueHead = (telegramQueueHead + 1) % TELEGRAM_QUEUE_SIZE;
+    telegramQueueCount--;
+  }
+  
+  telegramQueue[telegramQueueTail] = text;
+  telegramQueueTail = (telegramQueueTail + 1) % TELEGRAM_QUEUE_SIZE;
+  telegramQueueCount++;
+  Serial.println("[Telegram] Uzenet sorba helyezve. Varakozo: " + String(telegramQueueCount));
+}
+
+// ÚJ: Egyetlen üzenet tényleges elküldése (a loop()-ból hívva)
+// Ez továbbra is blokkoló, de egyszerre csak 1 üzenetet küld.
+void processTelegramQueue() {
+  if (telegramQueueCount == 0) return;
+  
+  // Üzenet kivétele a sor elejéről
+  String text = telegramQueue[telegramQueueHead];
+  telegramQueueHead = (telegramQueueHead + 1) % TELEGRAM_QUEUE_SIZE;
+  telegramQueueCount--;
+  
+  Serial.println("[Telegram] Memoria felszabaditasa: MQTT kapcsolat atmeneti bontasa...");
   client.disconnect(); 
-  delay(200); 
+  delay(100); 
   
   WiFiClientSecure clientSecure;
   clientSecure.setInsecure();
@@ -107,6 +150,7 @@ void sendTelegramMessage(String text) {
       if (millis() - timeout > 5000) {
          Serial.println("[Telegram] HIBA: Idotullepes (Timeout)!");
          clientSecure.stop();
+         // Az MQTT reconnect a loop()-ban automatikusan megtörténik
          return;
       }
     }
@@ -114,14 +158,18 @@ void sendTelegramMessage(String text) {
     Serial.println("[Telegram] SIKERES KULDES!");
     clientSecure.stop();
   } else {
-    Serial.println("[Telegram] KRITIKUS HIBA: Meg igy sem sikerult a TLS kapcsolat!");
+    Serial.println("[Telegram] KRITIKUS HIBA: TLS kapcsolat sikertelen!");
   }
+  
+  // Nem hívunk itt reconnect()-et — a loop() elején lévő
+  // if (!client.connected()) reconnect(); automatikusan kezeli.
 }
 
 void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
   memcpy(&receivedData, incomingData, sizeof(receivedData));
   newDataAvailable = true;
   hasReceivedFirstData = true;
+  client.publish("aquarium/health/nodeA", "ONLINE");
 }
 
 ICACHE_RAM_ATTR void handleCDInterrupt() {
@@ -282,7 +330,6 @@ void setup() {
   client.setServer(mqtt_server, 8883);
   client.setCallback(callback);
   
-  // SD kártya és beállítások (ChatID) beolvasása induláskor
   setupSDCard();
 }
 
@@ -290,13 +337,14 @@ void loop() {
   if (!client.connected()) reconnect();
   client.loop();
 
-  // ÚJ: Indulási értesítés elküldése (csak ha van már kinyert Chat ID az SD-ről)
+  // Indulási értesítés (sorba helyezve, nem blokkolóan)
   if (client.connected() && isFirstBoot) {
-    isFirstBoot = false; // Átbillentjük, hogy többet ne fusson le
-    if (chatId != "" && chatId != "0") {
-      sendTelegramMessage("🟢 AquaControl Rendszer elindult!\nA Gerinc (Node C) csatlakozott az MQTT szerverhez.");
-    }
+    isFirstBoot = false;
+    queueTelegramMessage("🟢 AquaControl Rendszer elindult!\nA Gerinc (Node C) csatlakozott az MQTT szerverhez.");
   }
+
+  // ÚJ: Telegram sor feldolgozása — iterációnként max. 1 üzenet
+  processTelegramQueue();
 
   // ESP-NOW adat fogadása
   if (newDataAvailable) {
@@ -316,7 +364,7 @@ void loop() {
     }
   }
 
-  // 10 Perces Telegram határérték ellenőrzés
+  // 10 perces Telegram határérték ellenőrzés (sorba helyezve)
   if (hasReceivedFirstData && (millis() - lastTelegramCheck > 600000)) { 
     lastTelegramCheck = millis();
     
@@ -332,11 +380,11 @@ void loop() {
 
     if (alertMsg != "") {
       String finalMsg = "⚠️ AKVARIUM RIASZTAS! ⚠️\n\nA kovetkezo ertekek atleptek a hatarerteket:\n\n" + alertMsg;
-      sendTelegramMessage(finalMsg);
+      queueTelegramMessage(finalMsg);
     }
   }
 
-  // SD kártya be/ki figyelése Telegram riasztásokkal
+  // SD kártya be/ki figyelése (Telegram riasztás sorba helyezve)
   if (cdStateChanged) {
     if (millis() - lastCdDebounce > 200) { 
       lastCdDebounce = millis();
@@ -345,15 +393,15 @@ void loop() {
       
       if (isInserted && !sdCardPresent) {
         setupSDCard(); 
-        if (sdCardPresent) { // Ha sikeresen betöltött az SD
-           sendTelegramMessage("💾 VISSZAÁLLÍTVA: SD kártya behelyezve és inicializálva. Az adatmentés folytatódik.");
+        if (sdCardPresent) {
+           queueTelegramMessage("💾 VISSZAÁLLÍTVA: SD kártya behelyezve és inicializálva. Az adatmentés folytatódik.");
         }
       } 
       else if (!isInserted && sdCardPresent) {
         sdCardPresent = false;
         client.publish("aquarium/health/sdcard", "ERROR", true);
         SD.end(); 
-        sendTelegramMessage("⚠️ FIGYELEM: Az SD kártyát eltávolították! A lokális adatmentés jelenleg szünetel.");
+        queueTelegramMessage("⚠️ FIGYELEM: Az SD kártyát eltávolították! A lokális adatmentés jelenleg szünetel.");
       }
     }
   }
