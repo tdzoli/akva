@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AquaControl Pro Dashboard v1.6</title>
+    <title>AquaControl Pro Dashboard v1.7</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
     <style>
         :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --warning: #ffc107; --bg: #f4f7f9; --accent: #e83e8c; --check: #17a2b8; --purple: #6f42c1; --dark: #343a40; }
@@ -36,13 +36,14 @@
         .msg-warn { background: #fff3cd; color: #856404; }
         .msg-err { background: #f8d7da; color: #721c24; }
 
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
-        
-        /* ÚJ: Beállítások gridje */
-        .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; margin-bottom: 15px;}
-        .settings-grid input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; margin-top: 4px;}
+        .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; margin-bottom: 15px; }
+        .settings-grid input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; margin-top: 4px; }
         .settings-full { grid-column: span 2; }
         
+        .threshold-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; padding: 12px; background: #f8f9fa; border-radius: 8px; }
+        .threshold-grid small { font-weight: bold; color: #7f8c8d; }
+        .threshold-grid input { width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; margin-top: 4px; font-size: 13px; }
+
         button { border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; color: white; font-size: 14px; }
         .btn-on { background: var(--success); }
         .btn-off { background: var(--dark); }
@@ -51,9 +52,6 @@
         .btn-check { background: var(--check); width: 100%; margin-top: 12px; }
         button:disabled { background: #ccc; cursor: not-allowed; opacity: 0.6; }
         button:hover:not(:disabled) { opacity: 0.8; transform: translateY(-1px); }
-        
-        .status-box { padding: 10px; border-radius: 8px; background: #f8f9fa; margin-bottom: 10px; border-left: 5px solid #ccc; transition: 0.3s; }
-        .status-led { font-size: 14px; font-weight: 600; }
 
         .sd-dependent { transition: all 0.4s ease-in-out; }
         .sd-disabled { filter: grayscale(100%); opacity: 0.4; pointer-events: none; cursor: not-allowed; border: 1px dashed #999; }
@@ -61,19 +59,27 @@
         #fish-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; }
         .modal-content { background: white; width: 90%; max-width: 500px; margin: 40px auto; border-radius: 15px; max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; }
         .modal-header, .modal-footer { padding: 15px 20px; background: #f8f9fa; }
-        .search-box { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; margin-top: 10px; }
+        .search-box { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; margin-top: 10px; box-sizing: border-box; }
         #fish-list-container { padding: 10px 20px; overflow-y: auto; flex-grow: 1; }
         .fish-item { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
         .fish-item input { margin-right: 15px; }
 
         #result-box { margin-top: 15px; padding: 15px; border-radius: 8px; display: none; font-size: 14px; }
+        
+        .conn-banner { display: none; padding: 10px; text-align: center; font-weight: bold; font-size: 13px; border-radius: 8px; margin-bottom: 10px; }
+        .conn-offline { display: block; background: var(--danger); color: white; }
+        .conn-reconnecting { display: block; background: var(--warning); color: #333; }
+
         #log { font-size: 11px; color: #95a5a6; margin-top: 20px; font-family: monospace; text-align: center; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>🌊 AquaControl Pro v1.6</h1>
+    <h1>🌊 AquaControl Pro v1.7</h1>
+
+    <!-- ÚJ: Kapcsolat állapot banner -->
+    <div id="conn-banner" class="conn-banner"></div>
 
     <div class="card">
         <h3>Hálózat & Diagnosztika</h3>
@@ -83,6 +89,7 @@
             <div id="badge-C" class="node-badge node-offline">Gerinc<br>(Node C)</div>
             <div id="badge-SD" class="node-badge node-offline">SD Kártya<br>ISMERETLEN</div>
         </div>
+        <button class="btn-check" onclick="send('aquarium/request', 'CHECK')" style="margin-top: 12px;">🔍 Rendszerállapot szinkronizálása</button>
     </div>
 
     <div class="card" id="sensor-card">
@@ -98,6 +105,7 @@
         
         <button class="btn-main" onclick="openModal()">🐟 Halak Kiválasztása</button>
         <button id="btn-set-temp" class="btn-action sd-dependent" onclick="applyTemperature()" disabled>⚙️ Ideális hőmérséklet mentése SD-re</button>
+        <div id="temp-save-result" style="display:none; margin-top:10px; font-weight:bold; font-size:14px; padding:10px; border-radius:8px;"></div>
     </div>
 
     <div class="card" id="light-card">
@@ -120,6 +128,14 @@
             <div style="color: #007bff;">B: <span id="b-val">--</span>%</div>
         </div>
         <div id="rgb-msg" class="light-msg" style="margin-top: 8px; text-align: center;">Nincs adat</div>
+
+        <!-- ÚJ: Kiértékelési küszöbértékek -->
+        <div class="threshold-grid">
+            <div><small>Ideális Lux Min</small><input type="number" id="eval-lux-min" value="100" onchange="reEvaluateLight()"></div>
+            <div><small>Ideális Lux Max</small><input type="number" id="eval-lux-max" value="800" onchange="reEvaluateLight()"></div>
+            <div><small>Ideális Kelvin Min</small><input type="number" id="eval-kelvin-min" value="4000" onchange="reEvaluateLight()"></div>
+            <div><small>Ideális Kelvin Max</small><input type="number" id="eval-kelvin-max" value="7500" onchange="reEvaluateLight()"></div>
+        </div>
     </div>
 
     <div class="card sd-dependent">
@@ -140,19 +156,6 @@
         </div>
         <button id="btn-save-settings" class="btn-action sd-dependent" onclick="saveAllSettings()" disabled>💾 Határértékek mentése SD-re</button>
         <div id="settings-result" style="display:none; margin-top:10px; font-weight:bold; font-size:14px; padding:10px; border-radius:8px;"></div>
-    </div>
-
-    <div class="card">
-        <h3>Manuális Vezérlés (Node B)</h3>
-        <div id="box-led1" class="status-box"><div id="status-led1" class="status-led">Lámpa 1: Ismeretlen</div></div>
-        <div id="box-led2" class="status-box"><div id="status-led2" class="status-led">Lámpa 2: Ismeretlen</div></div>
-        <div class="grid">
-            <button class="btn-on" onclick="send('aquarium/control', '1')">1. BE</button>
-            <button class="btn-off" onclick="send('aquarium/control', '0')">1. KI</button>
-            <button class="btn-on" onclick="send('aquarium/control', '2')">2. BE</button>
-            <button class="btn-off" onclick="send('aquarium/control', '3')">2. KI</button>
-        </div>
-        <button class="btn-check" onclick="send('aquarium/request', 'CHECK')">🔍 Rendszerállapot szinkronizálása</button>
     </div>
 
     <div class="card">
@@ -178,13 +181,34 @@
 </div>
 
 <script>
-    let currentCalculatedSetpoint = null;
-    let setpointWaitTimer = null;
-    let isSdCardOk = false; 
-    let wdA, wdB, wdC;
-    const WATCHDOG_TIMEOUT = 25000; 
+    // =====================================================================
+    // VÁLTOZTATÁSOK ÖSSZEFOGLALÁSA (v1.6 → v1.7)
+    // =====================================================================
+    // 1. LÁMPA VEZÉRLÉS ELTÁVOLÍTVA: A korábbi LED1/LED2 relévezérlő kártya
+    //    és a hozzá tartozó mágikus számok (0/1/2/3) teljesen kikerültek.
+    //
+    // 2. FÉNY KIÉRTÉKELÉSI KÜSZÖBÖK ÁLLÍTHATÓK: A korábban beégetett
+    //    lux (100-800) és kelvin (4000-7500) ideális tartományok most
+    //    input mezőkből jönnek, és valós időben frissülnek.
+    //
+    // 3. SETPOINT ÉS SETTINGS TIMER SZÉTVÁLASZTVA: Korábban egyetlen
+    //    setpointWaitTimer szolgálta mindkét mentés gombot, ami hamis
+    //    sikert jelezhetett. Most külön timer van mindkettőhöz.
+    //
+    // 4. MQTT RECONNECT VISSZAJELZÉS: A felhasználó banner-ben látja,
+    //    ha a kapcsolat megszakadt vagy újracsatlakozás folyamatban van.
+    // =====================================================================
 
-    // ÚJ: Kombinált állapot tároló
+    let currentCalculatedSetpoint = null;
+    let tempSaveTimer = null;      // Hőmérséklet mentés timer (korábban közös volt)
+    let settingsSaveTimer = null;   // Határértékek mentés timer (korábban közös volt)
+    let isSdCardOk = false;
+    let wdA, wdB, wdC;
+    const WATCHDOG_TIMEOUT = 25000;
+
+    // Utolsó ismert fényadatok (újrakiértékeléshez)
+    let lastLightData = { lux: null, kelvin: null, r: 0, g: 0, b: 0 };
+
     let sysSettings = {
         setpoint: 25.0, tMin: 20.0, tMax: 28.0, phMin: 6.0, phMax: 8.0,
         tdsMin: 0, tdsMax: 1000, luxMin: 0, luxMax: 10000, chatId: "0"
@@ -204,6 +228,22 @@
         username: 'akva_admin', password: 'Akva123456'
     });
 
+    // --- MQTT kapcsolat állapot visszajelzés ---
+    function setConnBanner(state) {
+        const banner = document.getElementById('conn-banner');
+        if (state === 'online') {
+            banner.className = 'conn-banner';  // elrejtés
+            banner.textContent = '';
+        } else if (state === 'offline') {
+            banner.className = 'conn-banner conn-offline';
+            banner.textContent = '⚠️ Kapcsolat megszakadt!';
+        } else if (state === 'reconnecting') {
+            banner.className = 'conn-banner conn-reconnecting';
+            banner.textContent = '🔄 Újracsatlakozás folyamatban...';
+        }
+    }
+
+    // --- Node Watchdog ---
     function triggerHeartbeat(node) {
         const badge = document.getElementById('badge-' + node);
         badge.className = 'node-badge node-online';
@@ -221,7 +261,6 @@
             badge.className = 'node-badge node-offline';
             badge.innerHTML = `Node ${node}<br>OFFLINE`;
             updateLog(`⚠️ Node ${node} kapcsolat megszakadt!`);
-            
             if(node === 'A') {
                 document.getElementById('sensor-card').classList.add('stale-data');
                 document.getElementById('light-card').classList.add('stale-data');
@@ -235,6 +274,7 @@
         }, WATCHDOG_TIMEOUT);
     }
 
+    // --- SD kártya függő UI elemek kezelése ---
     function updateSdUI(isOk) {
         isSdCardOk = isOk;
         const sdDependentElements = document.querySelectorAll('.sd-dependent');
@@ -260,15 +300,24 @@
         }
     }
 
-    client.on('connect', () => { 
-        updateLog("Csatlakozva a Brokerhez."); 
+    // --- MQTT Események ---
+    client.on('connect', () => {
+        setConnBanner('online');
+        updateLog("Csatlakozva a Brokerhez.");
         client.subscribe('aquarium/#');
         setTimeout(() => send('aquarium/request', 'CHECK'), 1000);
     });
 
+    client.on('reconnect', () => setConnBanner('reconnecting'));
+    client.on('offline', () => setConnBanner('offline'));
+    client.on('error', (err) => {
+        setConnBanner('offline');
+        updateLog('MQTT hiba: ' + err.message);
+    });
+
     client.on('message', (topic, message) => {
         const msg = message.toString();
-        
+
         if (topic === 'aquarium/health/nodeA') triggerHeartbeat('A');
         if (topic === 'aquarium/health/nodeB') triggerHeartbeat('B');
         if (topic === 'aquarium/health/nodeC') triggerHeartbeat('C');
@@ -286,16 +335,13 @@
             }
         }
 
-        if (topic === 'aquarium/status/led1') updateStatusDisplay('led1', msg);
-        if (topic === 'aquarium/status/led2') updateStatusDisplay('led2', msg);
-        
-        // ÚJ: A teljes beállítás csomag feldolgozása a mikrokontrollertől
+        // Beállítások fogadása a Gerinctől
         if (topic === 'aquarium/settings/state') {
             const parts = msg.split(';');
             if (parts.length >= 10) {
                 sysSettings.setpoint = parseFloat(parts[0]);
                 document.getElementById('ideal-temp-val').innerText = `Aktív célérték (Gerinc memóriája): ${sysSettings.setpoint} °C`;
-                
+
                 document.getElementById('t-min').value = parts[1];
                 document.getElementById('t-max').value = parts[2];
                 document.getElementById('ph-min').value = parts[3];
@@ -305,34 +351,36 @@
                 document.getElementById('lux-min').value = parts[7];
                 document.getElementById('lux-max').value = parts[8];
                 document.getElementById('chat-id').value = parts[9] === "0" ? "" : parts[9];
-                
-                // Visszajelzés a gombokhoz, ha vártunk rá
-                if (setpointWaitTimer) {
-                    clearTimeout(setpointWaitTimer);
-                    setpointWaitTimer = null;
-                    
+
+                // Hőmérséklet mentés visszajelzése
+                if (tempSaveTimer) {
+                    clearTimeout(tempSaveTimer);
+                    tempSaveTimer = null;
                     const res = document.getElementById('result-box');
                     if (res.style.display !== "none") {
                         res.style.background = "var(--success)";
                         res.style.color = "white";
                         res.innerHTML = `✅ Célérték elmentve az SD kártyára!`;
                     }
-                    
+                    if(isSdCardOk) document.getElementById('btn-set-temp').disabled = false;
+                }
+
+                // Határértékek mentés visszajelzése
+                if (settingsSaveTimer) {
+                    clearTimeout(settingsSaveTimer);
+                    settingsSaveTimer = null;
                     const sRes = document.getElementById('settings-result');
                     if (sRes.style.display !== "none") {
                         sRes.style.background = "var(--success)";
                         sRes.style.color = "white";
                         sRes.innerHTML = `✅ Határértékek sikeresen elmentve az SD kártyára!`;
                     }
-                    
-                    if(isSdCardOk) {
-                        document.getElementById('btn-set-temp').disabled = false;
-                        document.getElementById('btn-save-settings').disabled = false;
-                    }
+                    if(isSdCardOk) document.getElementById('btn-save-settings').disabled = false;
                 }
             }
         }
 
+        // Szenzor adatok
         if (topic === 'aquarium/sensor/data') {
             triggerHeartbeat('A');
             try {
@@ -340,70 +388,32 @@
                 if(data.temp !== undefined) document.getElementById('temp-val').innerText = data.temp + " °C";
                 if(data.ph !== undefined) document.getElementById('ph-val').innerText = data.ph + " pH";
                 if(data.tds !== undefined) document.getElementById('tds-val').innerText = data.tds + " ppm";
-                
+
                 if(data.lux !== undefined && data.kelvin !== undefined) {
                     let r = data.r_pct !== undefined ? data.r_pct : 0;
                     let g = data.g_pct !== undefined ? data.g_pct : 0;
                     let b = data.b_pct !== undefined ? data.b_pct : 0;
+                    lastLightData = { lux: data.lux, kelvin: data.kelvin, r: r, g: g, b: b };
                     evaluateLightData(data.lux, data.kelvin, r, g, b);
                 }
             } catch(e) { console.error(e); }
         }
     });
 
-    // ÚJ: Közös String építő a mentésekhez
-    function buildSettingsString() {
-        let cid = document.getElementById('chat-id').value.trim();
-        if(cid === "") cid = "0";
-        return `${sysSettings.setpoint};${document.getElementById('t-min').value || 0};${document.getElementById('t-max').value || 0};${document.getElementById('ph-min').value || 0};${document.getElementById('ph-max').value || 0};${document.getElementById('tds-min').value || 0};${document.getElementById('tds-max').value || 0};${document.getElementById('lux-min').value || 0};${document.getElementById('lux-max').value || 0};${cid}`;
+    // --- Fény kiértékelés (állítható küszöbökkel) ---
+    function getEvalThresholds() {
+        return {
+            luxMin: parseInt(document.getElementById('eval-lux-min').value) || 100,
+            luxMax: parseInt(document.getElementById('eval-lux-max').value) || 800,
+            kelvinMin: parseInt(document.getElementById('eval-kelvin-min').value) || 4000,
+            kelvinMax: parseInt(document.getElementById('eval-kelvin-max').value) || 7500
+        };
     }
 
-    // ÚJ: Határértékek mentése
-    function saveAllSettings() {
-        if (!isSdCardOk) return;
-        const btn = document.getElementById('btn-save-settings');
-        const res = document.getElementById('settings-result');
-        
-        btn.disabled = true;
-        res.style.display = "block";
-        res.style.background = "var(--warning)";
-        res.style.color = "#333";
-        res.innerHTML = `⏳ Várakozás a Gerinc (Node C) megerősítésére...`;
-        
-        send('aquarium/settings/set', buildSettingsString()); 
-        
-        setpointWaitTimer = setTimeout(() => {
-            res.style.background = "var(--danger)"; res.style.color = "white";
-            res.innerHTML = `⚠️ HIBA: A mentés sikertelen! A Gerinc megtagadta a fájlírást, vagy nem válaszol.`;
-            if(isSdCardOk) btn.disabled = false; 
-            setpointWaitTimer = null;
-        }, 5000);
-    }
-
-    // FRISSÍTETT: Ideális hőmérséklet mentése
-    function applyTemperature() { 
-        if (!isSdCardOk) return;
-
-        if (currentCalculatedSetpoint) { 
-            sysSettings.setpoint = currentCalculatedSetpoint; // Beírjuk a memóriába
-            const applyBtn = document.getElementById('btn-set-temp');
-            const res = document.getElementById('result-box');
-            
-            applyBtn.disabled = true;
-            res.style.background = "var(--warning)";
-            res.style.color = "#333";
-            res.innerHTML = `⏳ Várakozás a Gerinc (Node C) megerősítésére...`;
-            
-            // Elkükldjük a teljes kombinált sorozatot
-            send('aquarium/settings/set', buildSettingsString()); 
-            
-            setpointWaitTimer = setTimeout(() => {
-                res.style.background = "var(--danger)"; res.style.color = "white";
-                res.innerHTML = `⚠️ HIBA: A mentés sikertelen!`;
-                if(isSdCardOk) applyBtn.disabled = false; 
-                setpointWaitTimer = null;
-            }, 5000);
-        } 
+    function reEvaluateLight() {
+        if (lastLightData.lux !== null) {
+            evaluateLightData(lastLightData.lux, lastLightData.kelvin, lastLightData.r, lastLightData.g, lastLightData.b);
+        }
     }
 
     function evaluateLightData(lux, kelvin, r, g, b) {
@@ -413,43 +423,85 @@
         if (!isNaN(g)) document.getElementById('g-val').innerText = g.toFixed(1);
         if (!isNaN(b)) document.getElementById('b-val').innerText = b.toFixed(1);
 
+        const th = getEvalThresholds();
         const luxMsg = document.getElementById('lux-msg');
         const kelvinMsg = document.getElementById('kelvin-msg');
         const rgbMsg = document.getElementById('rgb-msg');
 
         if (lux < 10) setMsg(luxMsg, "Sötét / Éjszaka", "msg-ok");
-        else if (lux >= 10 && lux < 100) setMsg(luxMsg, "Túl gyenge a növényeknek", "msg-warn");
-        else if (lux >= 100 && lux <= 800) setMsg(luxMsg, "Ideális általános akváriumba", "msg-ok");
+        else if (lux < th.luxMin) setMsg(luxMsg, "Túl gyenge a növényeknek", "msg-warn");
+        else if (lux <= th.luxMax) setMsg(luxMsg, "Ideális általános akváriumba", "msg-ok");
         else setMsg(luxMsg, "Magas intenzitás: Alga veszély!", "msg-err");
 
-        if (kelvin < 4000) setMsg(kelvinMsg, "Túl meleg/sárga: Barnaalga veszély", "msg-warn");
-        else if (kelvin >= 4000 && kelvin <= 7500) setMsg(kelvinMsg, "Ideális nappali spektrum", "msg-ok");
+        if (kelvin < th.kelvinMin) setMsg(kelvinMsg, "Túl meleg/sárga: Barnaalga veszély", "msg-warn");
+        else if (kelvin <= th.kelvinMax) setMsg(kelvinMsg, "Ideális nappali spektrum", "msg-ok");
         else setMsg(kelvinMsg, "Túl hideg/kék: Zöldalga veszély", "msg-err");
 
         if (r < 10 && b < 10 && lux > 50) setMsg(rgbMsg, "Hiányzik a fotoszintézishez szükséges piros/kék hullámhossz!", "msg-err");
         else if (g > (r + b) && lux > 50) setMsg(rgbMsg, "Nem hatékony spektrum. Túl sok a visszaverődő zöld fény.", "msg-warn");
         else if (lux > 50) setMsg(rgbMsg, "Kiegyensúlyozott spektrum a fotoszintézishez.", "msg-ok");
-        else setMsg(rgbMsg, "-", "msg-ok"); 
+        else setMsg(rgbMsg, "-", "msg-ok");
     }
 
     function setMsg(element, text, className) {
         element.innerText = text; element.className = "light-msg " + className;
     }
 
-    function updateStatusDisplay(ledId, state) {
-        const textEl = document.getElementById('status-' + ledId);
-        const boxEl = document.getElementById('box-' + ledId);
-        const label = ledId === 'led1' ? 'Lámpa 1' : 'Lámpa 2';
-        if (state === "1") {
-            textEl.innerText = label + ": BEKAPCSOLVA"; boxEl.style.borderLeftColor = "var(--success)";
-        } else {
-            textEl.innerText = label + ": KIKAPCSOLVA"; boxEl.style.borderLeftColor = "var(--danger)";
-        }
+    // --- Beállítások építő és mentés ---
+    function buildSettingsString() {
+        let cid = document.getElementById('chat-id').value.trim();
+        if(cid === "") cid = "0";
+        return `${sysSettings.setpoint};${document.getElementById('t-min').value || 0};${document.getElementById('t-max').value || 0};${document.getElementById('ph-min').value || 0};${document.getElementById('ph-max').value || 0};${document.getElementById('tds-min').value || 0};${document.getElementById('tds-max').value || 0};${document.getElementById('lux-min').value || 0};${document.getElementById('lux-max').value || 0};${cid}`;
     }
 
+    function saveAllSettings() {
+        if (!isSdCardOk) return;
+        const btn = document.getElementById('btn-save-settings');
+        const res = document.getElementById('settings-result');
+
+        btn.disabled = true;
+        res.style.display = "block";
+        res.style.background = "var(--warning)";
+        res.style.color = "#333";
+        res.innerHTML = `⏳ Várakozás a Gerinc (Node C) megerősítésére...`;
+
+        send('aquarium/settings/set', buildSettingsString());
+
+        settingsSaveTimer = setTimeout(() => {
+            res.style.background = "var(--danger)"; res.style.color = "white";
+            res.innerHTML = `⚠️ HIBA: A mentés sikertelen! A Gerinc megtagadta a fájlírást, vagy nem válaszol.`;
+            if(isSdCardOk) btn.disabled = false;
+            settingsSaveTimer = null;
+        }, 5000);
+    }
+
+    function applyTemperature() {
+        if (!isSdCardOk || !currentCalculatedSetpoint) return;
+
+        sysSettings.setpoint = currentCalculatedSetpoint;
+        const applyBtn = document.getElementById('btn-set-temp');
+        const res = document.getElementById('result-box');
+
+        applyBtn.disabled = true;
+        res.style.background = "var(--warning)";
+        res.style.color = "#333";
+        res.innerHTML = `⏳ Várakozás a Gerinc (Node C) megerősítésére...`;
+
+        send('aquarium/settings/set', buildSettingsString());
+
+        tempSaveTimer = setTimeout(() => {
+            res.style.background = "var(--danger)"; res.style.color = "white";
+            res.innerHTML = `⚠️ HIBA: A mentés sikertelen!`;
+            if(isSdCardOk) applyBtn.disabled = false;
+            tempSaveTimer = null;
+        }, 5000);
+    }
+
+    // --- Segédfüggvények ---
     function send(topic, value) { client.publish(topic, value); }
     function updateLog(txt) { document.getElementById('log').innerText = new Date().toLocaleTimeString() + ": " + txt; }
-    
+
+    // --- Halválasztó Modal ---
     function openModal() {
         const container = document.getElementById('fish-list-container');
         container.innerHTML = fishData.sort((a,b) => a.name.localeCompare(b.name)).map(f => `
@@ -460,7 +512,7 @@
         `).join('');
         document.getElementById('fish-modal').style.display = 'block';
     }
-    
+
     function closeModal() { document.getElementById('fish-modal').style.display = 'none'; }
     function filterFish() {
         const val = document.getElementById('fishSearch').value.toLowerCase();
@@ -468,7 +520,7 @@
             item.style.display = item.innerText.toLowerCase().includes(val) ? 'flex' : 'none';
         });
     }
-    
+
     function processSelection() {
         const selected = Array.from(document.querySelectorAll('.fish-chk:checked'));
         if (selected.length === 0) { closeModal(); return; }
@@ -480,7 +532,7 @@
         const res = document.getElementById('result-box');
         res.style.display = 'block';
         res.style.color = "#333";
-        
+
         if (cMin > cMax) {
             res.style.background = "var(--warning)"; res.innerHTML = `⚠️ Hiba: Nem összeegyeztethető halak!`;
             document.getElementById('btn-set-temp').disabled = true;
