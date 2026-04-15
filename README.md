@@ -1,1 +1,1 @@
-tavoli eleres teszt
+Szakdolgozat téma
