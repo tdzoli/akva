@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AquaControl Pro Dashboard v1.7</title>
+    <title>AquaControl Pro Dashboard v1.8</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
     <style>
         :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --warning: #ffc107; --bg: #f4f7f9; --accent: #e83e8c; --check: #17a2b8; --purple: #6f42c1; --dark: #343a40; }
@@ -76,7 +76,7 @@
 <body>
 
 <div class="container">
-    <h1>🌊 AquaControl Pro v1.7</h1>
+    <h1>🌊 AquaControl Pro v1.8</h1>
 
     <!-- ÚJ: Kapcsolat állapot banner -->
     <div id="conn-banner" class="conn-banner"></div>
@@ -101,7 +101,7 @@
         </div>
         <div id="ideal-temp-val" style="color: var(--success); font-weight: bold; margin-top: 10px; font-size: 14px;">Aktív célérték: Nincs adat</div>
         
-        <div id="result-box" class="sd-dependent"></div>
+        <div id="result-box"></div>
         
         <button class="btn-main" onclick="openModal()">🐟 Halak Kiválasztása</button>
         <button id="btn-set-temp" class="btn-action sd-dependent" onclick="applyTemperature()" disabled>⚙️ Ideális hőmérséklet mentése SD-re</button>
@@ -175,36 +175,42 @@
         <div id="fish-list-container"></div>
         <div class="modal-footer" style="display: flex; gap:10px;">
             <button class="btn-off" style="flex:1;" onclick="closeModal()">Mégse</button>
-            <button class="btn-on" style="flex:1;" onclick="processSelection()">Kalkuláció mentése</button>
+            <button class="btn-on" style="flex:1;" onclick="processSelection()">Kompatibilitás ellenőrzése</button>
         </div>
     </div>
 </div>
 
 <script>
     // =====================================================================
-    // VÁLTOZTATÁSOK ÖSSZEFOGLALÁSA (v1.6 → v1.7)
+    // VÁLTOZTATÁSOK ÖSSZEFOGLALÁSA (v1.7 → v1.8)
     // =====================================================================
-    // 1. LÁMPA VEZÉRLÉS ELTÁVOLÍTVA: A korábbi LED1/LED2 relévezérlő kártya
-    //    és a hozzá tartozó mágikus számok (0/1/2/3) teljesen kikerültek.
+    // 1. A HAL-LISTA TÖBBÉ NEM BEÉGETETT: a dashboard most az SD kártyán
+    //    tárolt fish_catalog.csv tartalmát kéri le a Gerinctől MQTT-n.
     //
-    // 2. FÉNY KIÉRTÉKELÉSI KÜSZÖBÖK ÁLLÍTHATÓK: A korábban beégetett
-    //    lux (100-800) és kelvin (4000-7500) ideális tartományok most
-    //    input mezőkből jönnek, és valós időben frissülnek.
+    // 2. A KOMPATIBILITÁS MÁR pH-T IS FIGYEL: a közös hőmérséklet-tartomány
+    //    mellett közös pH-tartományt is keresünk.
     //
-    // 3. SETPOINT ÉS SETTINGS TIMER SZÉTVÁLASZTVA: Korábban egyetlen
-    //    setpointWaitTimer szolgálta mindkét mentés gombot, ami hamis
-    //    sikert jelezhetett. Most külön timer van mindkettőhöz.
+    // 3. SZŰK ÁTFEDÉS KIZÁRÁSA: a túl keskeny közös tartományokat nem
+    //    tekintjük stabil együtt-tartási alapnak.
     //
-    // 4. MQTT RECONNECT VISSZAJELZÉS: A felhasználó banner-ben látja,
-    //    ha a kapcsolat megszakadt vagy újracsatlakozás folyamatban van.
+    // 4. A KOMPATIBILITÁSI EREDMÉNY FENNMARAD: SD állapotváltozás után is
+    //    látható marad, csak a mentési lehetőség változik.
     // =====================================================================
 
-    let currentCalculatedSetpoint = null;
-    let tempSaveTimer = null;      // Hőmérséklet mentés timer (korábban közös volt)
-    let settingsSaveTimer = null;   // Határértékek mentés timer (korábban közös volt)
+    let selectionResult = null;
+    let selectionMessage = "";
+    let selectionMessageType = "info";
+    let tempSaveTimer = null;
+    let settingsSaveTimer = null;
     let isSdCardOk = false;
     let wdA, wdB, wdC;
     const WATCHDOG_TIMEOUT = 25000;
+    const MIN_TEMP_COMPATIBILITY_SPAN = 1.0; // °C
+    const MIN_PH_COMPATIBILITY_SPAN = 0.2;   // pH
+
+    let fishCatalog = [];
+    let fishCatalogBuffer = [];
+    let fishCatalogLoading = false;
 
     // Utolsó ismert fényadatok (újrakiértékeléshez)
     let lastLightData = { lux: null, kelvin: null, r: 0, g: 0, b: 0 };
@@ -213,14 +219,6 @@
         setpoint: 25.0, tMin: 20.0, tMax: 28.0, phMin: 6.0, phMax: 8.0,
         tdsMin: 0, tdsMax: 1000, luxMin: 0, luxMax: 10000, chatId: "0"
     };
-
-    const fishData = [
-        {name: "Neon tetra", min: 20, max: 26}, {name: "Cardinal tetra", min: 24, max: 28},
-        {name: "Guppy", min: 22, max: 28}, {name: "Platy", min: 20, max: 26},
-        {name: "Swordtail", min: 22, max: 28}, {name: "Molly", min: 24, max: 28},
-        {name: "Zebra danio", min: 18, max: 24}, {name: "Betta splendens", min: 24, max: 28},
-        {name: "Angelfish", min: 24, max: 28}, {name: "Discus", min: 28, max: 31}
-    ];
 
     const host = 'wss://4769a5772b894e1ea634b4eff4b1c6cd.s1.eu.hivemq.cloud:8884/mqtt';
     const client = mqtt.connect(host, {
@@ -278,26 +276,22 @@
     function updateSdUI(isOk) {
         isSdCardOk = isOk;
         const sdDependentElements = document.querySelectorAll('.sd-dependent');
-        const applyBtn = document.getElementById('btn-set-temp');
         const saveSettingsBtn = document.getElementById('btn-save-settings');
-        const resBox = document.getElementById('result-box');
 
         if (isOk) {
             sdDependentElements.forEach(el => el.classList.remove('sd-disabled'));
             saveSettingsBtn.disabled = false;
-            if (currentCalculatedSetpoint) {
-                applyBtn.disabled = false;
-                resBox.innerHTML = `✅ Kalkuláció kész: ${currentCalculatedSetpoint}°C <br><small>SD kártya érzékelve, mentés lehetséges.</small>`;
-                resBox.style.background = "var(--bg)";
-            }
+            if (!fishCatalog.length && !fishCatalogLoading) requestFishCatalog();
         } else {
             sdDependentElements.forEach(el => el.classList.add('sd-disabled'));
             saveSettingsBtn.disabled = true;
-            applyBtn.disabled = true;
-            if (currentCalculatedSetpoint && resBox.style.display === 'block') {
-                resBox.innerHTML = `✅ Kalkuláció kész: ${currentCalculatedSetpoint}°C <br><strong style='color:red;'>⚠️ Mentés letiltva: Nincs SD kártya!</strong>`;
-            }
+            fishCatalog = [];
+            fishCatalogBuffer = [];
+            fishCatalogLoading = false;
+            buildFishListHtml();
         }
+
+        renderSelectionResult();
     }
 
     // --- MQTT Események ---
@@ -305,7 +299,10 @@
         setConnBanner('online');
         updateLog("Csatlakozva a Brokerhez.");
         client.subscribe('aquarium/#');
-        setTimeout(() => send('aquarium/request', 'CHECK'), 1000);
+        setTimeout(() => {
+            send('aquarium/request', 'CHECK');
+            requestFishCatalog(true);
+        }, 1000);
     });
 
     client.on('reconnect', () => setConnBanner('reconnecting'));
@@ -356,13 +353,9 @@
                 if (tempSaveTimer) {
                     clearTimeout(tempSaveTimer);
                     tempSaveTimer = null;
-                    const res = document.getElementById('result-box');
-                    if (res.style.display !== "none") {
-                        res.style.background = "var(--success)";
-                        res.style.color = "white";
-                        res.innerHTML = `✅ Célérték elmentve az SD kártyára!`;
-                    }
-                    if(isSdCardOk) document.getElementById('btn-set-temp').disabled = false;
+                    selectionMessage = "✅ Célérték elmentve az SD kártyára!";
+                    selectionMessageType = "success";
+                    renderSelectionResult();
                 }
 
                 // Határértékek mentés visszajelzése
@@ -377,6 +370,39 @@
                     }
                     if(isSdCardOk) document.getElementById('btn-save-settings').disabled = false;
                 }
+            }
+        }
+
+        if (topic === 'aquarium/fish/catalog') {
+            if (msg === 'BEGIN') {
+                fishCatalogLoading = true;
+                fishCatalogBuffer = [];
+                buildFishListHtml();
+                updateLog('Haladatbázis betöltése az SD kártyáról...');
+            } else if (msg === 'END') {
+                fishCatalog = [...fishCatalogBuffer].sort((a, b) => a.name.localeCompare(b.name, 'hu'));
+                fishCatalogLoading = false;
+                buildFishListHtml();
+                updateLog(`Halfajok betöltve az SD kártyáról: ${fishCatalog.length} db`);
+            } else if (msg.startsWith('LINE;')) {
+                const parsed = parseFishCatalogLine(msg.substring(5));
+                if (parsed) fishCatalogBuffer.push(parsed);
+            } else if (msg === 'ERROR_SD') {
+                fishCatalogLoading = false;
+                fishCatalog = [];
+                fishCatalogBuffer = [];
+                buildFishListHtml();
+                updateLog('A haladatbázis nem tölthető be: nincs SD kártya.');
+            } else if (msg === 'ERROR_OPEN') {
+                fishCatalogLoading = false;
+                fishCatalog = [];
+                fishCatalogBuffer = [];
+                buildFishListHtml();
+                updateLog('A haladatbázis nem nyitható meg az SD kártyáról.');
+            } else if (msg === 'ERROR_MQTT') {
+                fishCatalogLoading = false;
+                buildFishListHtml();
+                updateLog('A haladatbázis átvitele MQTT hibába futott.');
             }
         }
 
@@ -447,6 +473,122 @@
         element.innerText = text; element.className = "light-msg " + className;
     }
 
+    function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, ch => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        }[ch]));
+    }
+
+    function requestFishCatalog(force = false) {
+        if (fishCatalogLoading && !force) return;
+        fishCatalogLoading = true;
+        fishCatalogBuffer = [];
+        buildFishListHtml();
+        send('aquarium/request', 'FISH_CATALOG');
+    }
+
+    function parseFishCatalogLine(line) {
+        const parts = line.split(';').map(p => p.trim());
+        if (parts.length < 5) return null;
+
+        const fish = {
+            name: parts[0],
+            tempMin: parseFloat(parts[1]),
+            tempMax: parseFloat(parts[2]),
+            phMin: parseFloat(parts[3]),
+            phMax: parseFloat(parts[4])
+        };
+
+        if (!fish.name) return null;
+        if ([fish.tempMin, fish.tempMax, fish.phMin, fish.phMax].some(v => Number.isNaN(v))) return null;
+
+        return fish;
+    }
+
+    function buildFishListHtml() {
+        const container = document.getElementById('fish-list-container');
+        if (!container) return;
+
+        if (fishCatalogLoading) {
+            container.innerHTML = '<div style="padding:12px 0; color:#7f8c8d;">⏳ Haladatbázis betöltése az SD kártyáról...</div>';
+            return;
+        }
+
+        if (!fishCatalog.length) {
+            container.innerHTML = '<div style="padding:12px 0; color:#c0392b;">⚠️ Nincs betöltött haladatbázis. Ellenőrizd az SD kártyát, majd nyisd meg újra.</div>';
+            return;
+        }
+
+        container.innerHTML = [...fishCatalog]
+            .sort((a, b) => a.name.localeCompare(b.name, 'hu'))
+            .map(f => `
+                <div class="fish-item">
+                    <input type="checkbox" class="fish-chk"
+                        data-name="${escapeHtml(f.name)}"
+                        data-temp-min="${f.tempMin}"
+                        data-temp-max="${f.tempMax}"
+                        data-ph-min="${f.phMin}"
+                        data-ph-max="${f.phMax}">
+                    <span><strong>${escapeHtml(f.name)}</strong><br><small>${f.tempMin.toFixed(1)}-${f.tempMax.toFixed(1)}°C | pH ${f.phMin.toFixed(1)}-${f.phMax.toFixed(1)}</small></span>
+                </div>
+            `).join('');
+
+        filterFish();
+    }
+
+    function getSelectionMessageHtml() {
+        if (!selectionMessage) return '';
+
+        const palette = {
+            success: { bg: 'var(--success)', color: 'white' },
+            warn: { bg: 'var(--warning)', color: '#333' },
+            error: { bg: 'var(--danger)', color: 'white' },
+            info: { bg: '#e9ecef', color: '#333' }
+        };
+
+        const current = palette[selectionMessageType] || palette.info;
+        return `<div style="margin-top:10px; padding:10px; border-radius:8px; background:${current.bg}; color:${current.color}; font-weight:bold;">${selectionMessage}</div>`;
+    }
+
+    function renderSelectionResult() {
+        const res = document.getElementById('result-box');
+        const applyBtn = document.getElementById('btn-set-temp');
+
+        if (!selectionResult) {
+            res.style.display = 'none';
+            applyBtn.disabled = true;
+            return;
+        }
+
+        res.style.display = 'block';
+        res.style.color = '#333';
+
+        if (!selectionResult.compatible) {
+            res.style.background = 'var(--warning)';
+            res.innerHTML = `⚠️ A kiválasztott fajok nem javasoltak közös medencébe.<br><small>${selectionResult.reasons.join('<br>')}</small>${getSelectionMessageHtml()}`;
+            applyBtn.disabled = true;
+            return;
+        }
+
+        const saveInfo = isSdCardOk
+            ? '<small>SD kártya érzékelve, a célhőmérséklet menthető.</small>'
+            : "<strong style='color:red;'>⚠️ Mentés letiltva: Nincs SD kártya!</strong>";
+
+        res.style.background = isSdCardOk ? 'var(--bg)' : 'var(--warning)';
+        res.innerHTML = `✅ Közös tartomány található.<br>
+            <small>Közös hőmérséklet: ${selectionResult.tempMin.toFixed(1)}-${selectionResult.tempMax.toFixed(1)}°C</small><br>
+            <small>Ajánlott célhőmérséklet: <strong>${selectionResult.setpoint}°C</strong></small><br>
+            <small>Közös pH: ${selectionResult.phMin.toFixed(1)}-${selectionResult.phMax.toFixed(1)}</small><br>
+            ${saveInfo}
+            ${getSelectionMessageHtml()}`;
+
+        applyBtn.disabled = !isSdCardOk;
+    }
+
     // --- Beállítások építő és mentés ---
     function buildSettingsString() {
         let cid = document.getElementById('chat-id').value.trim();
@@ -476,23 +618,22 @@
     }
 
     function applyTemperature() {
-        if (!isSdCardOk || !currentCalculatedSetpoint) return;
+        if (!isSdCardOk || !selectionResult || !selectionResult.compatible || !selectionResult.setpoint) return;
 
-        sysSettings.setpoint = currentCalculatedSetpoint;
+        sysSettings.setpoint = selectionResult.setpoint;
         const applyBtn = document.getElementById('btn-set-temp');
-        const res = document.getElementById('result-box');
 
         applyBtn.disabled = true;
-        res.style.background = "var(--warning)";
-        res.style.color = "#333";
-        res.innerHTML = `⏳ Várakozás a Gerinc (Node C) megerősítésére...`;
+        selectionMessage = '⏳ Várakozás a Gerinc (Node C) megerősítésére...';
+        selectionMessageType = 'warn';
+        renderSelectionResult();
 
         send('aquarium/settings/set', buildSettingsString());
 
         tempSaveTimer = setTimeout(() => {
-            res.style.background = "var(--danger)"; res.style.color = "white";
-            res.innerHTML = `⚠️ HIBA: A mentés sikertelen!`;
-            if(isSdCardOk) applyBtn.disabled = false;
+            selectionMessage = '⚠️ HIBA: A mentés sikertelen!';
+            selectionMessageType = 'error';
+            renderSelectionResult();
             tempSaveTimer = null;
         }, 5000);
     }
@@ -503,17 +644,17 @@
 
     // --- Halválasztó Modal ---
     function openModal() {
-        const container = document.getElementById('fish-list-container');
-        container.innerHTML = fishData.sort((a,b) => a.name.localeCompare(b.name)).map(f => `
-            <div class="fish-item">
-                <input type="checkbox" class="fish-chk" data-name="${f.name}" data-min="${f.min}" data-max="${f.max}">
-                <span><strong>${f.name}</strong> <small>(${f.min}-${f.max}°C)</small></span>
-            </div>
-        `).join('');
+        document.getElementById('fishSearch').value = '';
+        buildFishListHtml();
         document.getElementById('fish-modal').style.display = 'block';
+
+        if (!fishCatalog.length && !fishCatalogLoading) {
+            requestFishCatalog(true);
+        }
     }
 
     function closeModal() { document.getElementById('fish-modal').style.display = 'none'; }
+
     function filterFish() {
         const val = document.getElementById('fishSearch').value.toLowerCase();
         document.querySelectorAll('.fish-item').forEach(item => {
@@ -523,29 +664,63 @@
 
     function processSelection() {
         const selected = Array.from(document.querySelectorAll('.fish-chk:checked'));
-        if (selected.length === 0) { closeModal(); return; }
-        let cMin = -Infinity, cMax = Infinity;
-        selected.forEach(chk => {
-            const min = parseFloat(chk.dataset.min), max = parseFloat(chk.dataset.max);
-            if (min > cMin) cMin = min; if (max < cMax) cMax = max;
-        });
-        const res = document.getElementById('result-box');
-        res.style.display = 'block';
-        res.style.color = "#333";
 
-        if (cMin > cMax) {
-            res.style.background = "var(--warning)"; res.innerHTML = `⚠️ Hiba: Nem összeegyeztethető halak!`;
-            document.getElementById('btn-set-temp').disabled = true;
-        } else {
-            currentCalculatedSetpoint = ((cMin + cMax) / 2).toFixed(1);
-            if(isSdCardOk) {
-                res.style.background = "var(--bg)"; res.innerHTML = `✅ Kalkuláció kész: ${currentCalculatedSetpoint}°C`;
-                document.getElementById('btn-set-temp').disabled = false;
-            } else {
-                res.style.background = "var(--warning)"; res.innerHTML = `✅ Kalkuláció kész: ${currentCalculatedSetpoint}°C <br><strong style='color:red;'>⚠️ Mentés letiltva: Nincs SD kártya!</strong>`;
-                document.getElementById('btn-set-temp').disabled = true;
-            }
+        if (selected.length === 0) {
+            selectionResult = null;
+            selectionMessage = '';
+            renderSelectionResult();
+            closeModal();
+            return;
         }
+
+        let commonTempMin = -Infinity;
+        let commonTempMax = Infinity;
+        let commonPhMin = -Infinity;
+        let commonPhMax = Infinity;
+
+        selected.forEach(chk => {
+            const tMin = parseFloat(chk.dataset.tempMin);
+            const tMax = parseFloat(chk.dataset.tempMax);
+            const pMin = parseFloat(chk.dataset.phMin);
+            const pMax = parseFloat(chk.dataset.phMax);
+
+            if (tMin > commonTempMin) commonTempMin = tMin;
+            if (tMax < commonTempMax) commonTempMax = tMax;
+            if (pMin > commonPhMin) commonPhMin = pMin;
+            if (pMax < commonPhMax) commonPhMax = pMax;
+        });
+
+        const tempSpan = commonTempMax - commonTempMin;
+        const phSpan = commonPhMax - commonPhMin;
+        const reasons = [];
+
+        if (commonTempMin > commonTempMax) {
+            reasons.push('Nincs közös hőmérséklet-tartomány.');
+        } else if (tempSpan < MIN_TEMP_COMPATIBILITY_SPAN) {
+            reasons.push(`A közös hőmérséklet-tartomány túl szűk (${tempSpan.toFixed(1)}°C < ${MIN_TEMP_COMPATIBILITY_SPAN.toFixed(1)}°C).`);
+        }
+
+        if (commonPhMin > commonPhMax) {
+            reasons.push('Nincs közös pH-tartomány.');
+        } else if (phSpan < MIN_PH_COMPATIBILITY_SPAN) {
+            reasons.push(`A közös pH-tartomány túl szűk (${phSpan.toFixed(1)} < ${MIN_PH_COMPATIBILITY_SPAN.toFixed(1)}).`);
+        }
+
+        selectionResult = {
+            compatible: reasons.length === 0,
+            tempMin: commonTempMin,
+            tempMax: commonTempMax,
+            phMin: commonPhMin,
+            phMax: commonPhMax,
+            tempSpan: tempSpan,
+            phSpan: phSpan,
+            setpoint: reasons.length === 0 ? ((commonTempMin + commonTempMax) / 2).toFixed(1) : null,
+            reasons: reasons
+        };
+
+        selectionMessage = '';
+        selectionMessageType = 'info';
+        renderSelectionResult();
         closeModal();
     }
 </script>
