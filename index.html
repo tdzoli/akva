@@ -76,13 +76,13 @@
 <body>
 
 <div class="container">
-    <h1>🌊 AquaControl Pro v1.8</h1>
+    <h1>🌊 AquaControl</h1>
 
     <!-- ÚJ: Kapcsolat állapot banner -->
     <div id="conn-banner" class="conn-banner"></div>
 
     <div class="card">
-        <h3>Hálózat & Diagnosztika</h3>
+        <h3>Hálózat és Diagnosztika</h3>
         <div class="diag-grid">
             <div id="badge-A" class="node-badge node-offline">Szenzor<br>(Node A)</div>
             <div id="badge-B" class="node-badge node-offline">Vezérlés<br>(Node B)</div>
@@ -93,7 +93,7 @@
     </div>
 
     <div class="card" id="sensor-card">
-        <h3>Vízminőség & Hőmérséklet</h3>
+        <h3>Vízminőség és Hőmérséklet</h3>
         <div class="water-grid">
             <div><div class="water-label">Hőmérséklet</div><div id="temp-val" class="value">-- °C</div></div>
             <div><div class="water-label">Kémhatás</div><div id="ph-val" class="value-ph">-- pH</div></div>
@@ -109,7 +109,7 @@
     </div>
 
     <div class="card" id="light-card">
-        <h3>Fényviszonyok & Spektrum</h3>
+        <h3>Fényviszonyok és Spektrum</h3>
         <div class="light-grid">
             <div>
                 <small style="color:#7f8c8d; text-transform:uppercase;">Fényerő (Lux)</small>
@@ -139,7 +139,7 @@
     </div>
 
     <div class="card sd-dependent">
-        <h3>Telegram Értesítések & Határértékek</h3>
+        <h3>Telegram Értesítések és Határértékek</h3>
         <div class="settings-grid">
             <div class="settings-full">
                 <small style="color:#7f8c8d; font-weight:bold;">Telegram Chat ID (üresen hagyható):</small>
@@ -373,39 +373,6 @@
             }
         }
 
-        if (topic === 'aquarium/fish/catalog') {
-            if (msg === 'BEGIN') {
-                fishCatalogLoading = true;
-                fishCatalogBuffer = [];
-                buildFishListHtml();
-                updateLog('Haladatbázis betöltése az SD kártyáról...');
-            } else if (msg === 'END') {
-                fishCatalog = [...fishCatalogBuffer].sort((a, b) => a.name.localeCompare(b.name, 'hu'));
-                fishCatalogLoading = false;
-                buildFishListHtml();
-                updateLog(`Halfajok betöltve az SD kártyáról: ${fishCatalog.length} db`);
-            } else if (msg.startsWith('LINE;')) {
-                const parsed = parseFishCatalogLine(msg.substring(5));
-                if (parsed) fishCatalogBuffer.push(parsed);
-            } else if (msg === 'ERROR_SD') {
-                fishCatalogLoading = false;
-                fishCatalog = [];
-                fishCatalogBuffer = [];
-                buildFishListHtml();
-                updateLog('A haladatbázis nem tölthető be: nincs SD kártya.');
-            } else if (msg === 'ERROR_OPEN') {
-                fishCatalogLoading = false;
-                fishCatalog = [];
-                fishCatalogBuffer = [];
-                buildFishListHtml();
-                updateLog('A haladatbázis nem nyitható meg az SD kártyáról.');
-            } else if (msg === 'ERROR_MQTT') {
-                fishCatalogLoading = false;
-                buildFishListHtml();
-                updateLog('A haladatbázis átvitele MQTT hibába futott.');
-            }
-        }
-
         // Szenzor adatok
         if (topic === 'aquarium/sensor/data') {
             triggerHeartbeat('A');
@@ -488,7 +455,7 @@
         fishCatalogLoading = true;
         fishCatalogBuffer = [];
         buildFishListHtml();
-        send('aquarium/request', 'FISH_CATALOG');
+        send('aquarium/request', 'FISHDB');
     }
 
     function parseFishCatalogLine(line) {
