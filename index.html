@@ -655,20 +655,30 @@
     }
 
     function applyTemperature() {
-        if (!isSdCardOk || !selectionResult || !selectionResult.compatible || !selectionResult.setpoint) return;
-        sysSettings.setpoint = selectionResult.setpoint;
-        document.getElementById('btn-set-temp').disabled = true;
-        selectionMessage = '⏳ Várakozás a Gerinc (Node C) megerősítésére...';
-        selectionMessageType = 'warn';
+    if (!isSdCardOk || !selectionResult || !selectionResult.compatible || !selectionResult.setpoint) return;
+
+    sysSettings.setpoint = selectionResult.setpoint;
+
+    // A kiválasztott halak közös tartományai kerüljenek a mentendő beállítások közé
+    document.getElementById('t-min').value = selectionResult.tempMin.toFixed(1);
+    document.getElementById('t-max').value = selectionResult.tempMax.toFixed(1);
+    document.getElementById('ph-min').value = selectionResult.phMin.toFixed(1);
+    document.getElementById('ph-max').value = selectionResult.phMax.toFixed(1);
+
+    document.getElementById('btn-set-temp').disabled = true;
+    selectionMessage = '⏳ Várakozás a Gerinc (Node C) megerősítésére...';
+    selectionMessageType = 'warn';
+    renderSelectionResult();
+
+    send('aquarium/settings/set', buildSettingsString());
+
+    tempSaveTimer = setTimeout(() => {
+        selectionMessage = '⚠️ HIBA: A mentés sikertelen!';
+        selectionMessageType = 'error';
         renderSelectionResult();
-        send('aquarium/settings/set', buildSettingsString());
-        tempSaveTimer = setTimeout(() => {
-            selectionMessage = '⚠️ HIBA: A mentés sikertelen!';
-            selectionMessageType = 'error';
-            renderSelectionResult();
-            tempSaveTimer = null;
-        }, 5000);
-    }
+        tempSaveTimer = null;
+    }, 5000);
+}
 
     function send(topic, value) {
         client.publish(topic, value);
@@ -732,24 +742,34 @@
         if (commonPhMin > commonPhMax) reasons.push('Nincs közös pH-tartomány.');
         else if (phSpan < MIN_PH_COMPATIBILITY_SPAN) reasons.push(`A közös pH-tartomány túl szűk (${phSpan.toFixed(1)} < ${MIN_PH_COMPATIBILITY_SPAN.toFixed(1)}).`);
 
-        selectionResult = {
-            compatible: reasons.length === 0,
-            tempMin: commonTempMin,
-            tempMax: commonTempMax,
-            phMin: commonPhMin,
-            phMax: commonPhMax,
-            tempSpan,
-            phSpan,
-            setpoint: reasons.length === 0 ? ((commonTempMin + commonTempMax) / 2).toFixed(1) : null,
-            reasons
-        };
+selectionResult = {
+    compatible: reasons.length === 0,
+    tempMin: commonTempMin,
+    tempMax: commonTempMax,
+    phMin: commonPhMin,
+    phMax: commonPhMax,
+    tempSpan,
+    phSpan,
+    setpoint: reasons.length === 0 ? ((commonTempMin + commonTempMax) / 2).toFixed(1) : null,
+    reasons
+};
 
-        currentCalculatedSetpoint = selectionResult.setpoint;
-        selectionMessage = '';
-        selectionMessageType = 'info';
-        renderSelectionResult();
-        closeModal();
-    }
+currentCalculatedSetpoint = selectionResult.setpoint;
+
+// Ha kompatibilis, akkor automatikusan töltsük ki a közös pH tartományt
+if (selectionResult.compatible) {
+    document.getElementById('ph-min').value = selectionResult.phMin.toFixed(1);
+    document.getElementById('ph-max').value = selectionResult.phMax.toFixed(1);
+
+    // opcionálisan a közös hőmérséklet-tartományt is kiírhatod:
+    document.getElementById('t-min').value = selectionResult.tempMin.toFixed(1);
+    document.getElementById('t-max').value = selectionResult.tempMax.toFixed(1);
+}
+
+selectionMessage = '';
+selectionMessageType = 'info';
+renderSelectionResult();
+closeModal();
 </script>
 </body>
 </html>
