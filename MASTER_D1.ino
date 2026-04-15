@@ -31,6 +31,7 @@ NTPClient timeClient(ntpUDP, "pool.ntp.org", 3600, 60000);
 
 const char* logFileName = "/akva_log.csv";
 const char* setupFileName = "/setup.csv";
+const char* fishCatalogFileName = "/fish_catalog.csv";
 
 // Globális határértékek
 float activeSetpoint = 25.0;
@@ -79,6 +80,7 @@ typedef struct sensor_data_struct {
 sensor_data_struct receivedData;
 volatile bool newDataAvailable = false;
 bool hasReceivedFirstData = false;
+bool fishCatalogRequestPending = false;
 
 String getValue(String data, char separator, int index) {
   int found = 0;
@@ -185,6 +187,83 @@ String getFormattedDateTime() {
   return String(buffer);
 }
 
+
+void createDefaultFishCatalogOnSD() {
+  if (!sdCardPresent) return;
+  if (SD.exists(fishCatalogFileName)) return;
+
+  File fishFile = SD.open(fishCatalogFileName, FILE_WRITE);
+  if (!fishFile) {
+    Serial.println("[FISH] Nem sikerult letrehozni a fish_catalog.csv fajlt!");
+    return;
+  }
+
+  fishFile.println("hal_nev;hom_min_c;hom_max_c;ph_min;ph_max");
+  fishFile.println("Neon tetra;20;26;6.0;7.0");
+  fishFile.println("Cardinal tetra;23;29;5.0;7.0");
+  fishFile.println("Guppy;22;28;7.0;8.5");
+  fishFile.println("Platy;20;26;7.0;8.2");
+  fishFile.println("Swordtail;22;28;7.0;8.0");
+  fishFile.println("Molly;24;28;7.0;8.5");
+  fishFile.println("Zebra danio;18;26;6.5;7.5");
+  fishFile.println("Betta splendens;24;30;6.0;7.5");
+  fishFile.println("Angelfish;24;30;6.0;7.4");
+  fishFile.println("Discus;28;30;6.0;7.0");
+  fishFile.close();
+
+  Serial.println("[FISH] Alapertelmezett fish_catalog.csv letrehozva.");
+}
+
+void publishFishCatalog() {
+  if (!client.connected()) return;
+
+  if (!sdCardPresent) {
+    client.publish("aquarium/fish/catalog", "ERROR_SD");
+    return;
+  }
+
+  if (!SD.exists(fishCatalogFileName)) {
+    createDefaultFishCatalogOnSD();
+  }
+
+  File fishFile = SD.open(fishCatalogFileName, FILE_READ);
+  if (!fishFile) {
+    client.publish("aquarium/fish/catalog", "ERROR_OPEN");
+    return;
+  }
+
+  client.publish("aquarium/fish/catalog", "BEGIN");
+  while (fishFile.available()) {
+    String line = fishFile.readStringUntil('\n');
+    line.trim();
+
+    if (line.length() == 0 || line.startsWith("#")) continue;
+
+    String firstCol = getValue(line, ';', 0);
+    firstCol.trim();
+    String firstColLower = firstCol;
+    firstColLower.toLowerCase();
+
+    if (firstColLower == "hal_nev" || firstColLower == "name") continue;
+
+    String payload = "LINE;" + line;
+    if (!client.publish("aquarium/fish/catalog", payload.c_str())) {
+      Serial.println("[FISH] MQTT publish hiba a katalogus kuldese kozben!");
+      fishFile.close();
+      client.publish("aquarium/fish/catalog", "ERROR_MQTT");
+      return;
+    }
+
+    delay(5);
+    yield();
+  }
+
+  fishFile.close();
+  client.publish("aquarium/fish/catalog", "END");
+  Serial.println("[FISH] Hal-katalogus elkuldve MQTT-n.");
+}
+
+
 void loadSetupFromSD() {
   if (!sdCardPresent) return;
   if (SD.exists(setupFileName)) {
@@ -258,6 +337,7 @@ void setupSDCard() {
     }
   }
   loadSetupFromSD();
+  createDefaultFishCatalogOnSD();
 }
 
 void logDataToSD(String timestamp, float temp, float ph, float tds, int lux, int kelvin, float r_pct, float g_pct, float b_pct) {
@@ -292,6 +372,9 @@ void callback(char* topic, byte* payload, unsigned int length) {
   else if (String(topic) == "aquarium/request" && msg == "CHECK") {
     client.publish("aquarium/settings/state", getSettingsString().c_str(), true);
     client.publish("aquarium/health/sdcard", sdCardPresent ? "OK" : "ERROR", true);
+  }
+  else if (String(topic) == "aquarium/request" && msg == "FISH_CATALOG") {
+    fishCatalogRequestPending = true;
   }
 }
 
@@ -345,6 +428,11 @@ void loop() {
 
   // ÚJ: Telegram sor feldolgozása — iterációnként max. 1 üzenet
   processTelegramQueue();
+
+  if (fishCatalogRequestPending) {
+    fishCatalogRequestPending = false;
+    publishFishCatalog();
+  }
 
   // ESP-NOW adat fogadása
   if (newDataAvailable) {
