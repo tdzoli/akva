@@ -1,4 +1,6 @@
 #include <ESP8266WiFi.h>
+#include <WiFiClientSecure.h>
+#include <PubSubClient.h>
 #include <WiFiManager.h>
 #include <Wire.h>
 #include <Adafruit_ADS1X15.h>
@@ -7,18 +9,36 @@
 #include "Adafruit_TCS34725.h"
 #include <espnow.h>
 
-// A Gerinc (Node C) MAC címe
-uint8_t masterAddress[] = {0xA0, 0x20, 0xA6, 0x19, 0x1A, 0xD8};
+const char* mqtt_server = "";
+const char* mqtt_user = ""; 
+const char* mqtt_pass = "";
+
+// ============================================================
+// KALIBRÁCIÓ BEÁLLÍTÁSA
+// ============================================================
+// true  = Kalibráló mód (csak Serial-ra ír nyers feszültséget)
+// false = Normál üzem (ESP-NOW + MQTT, eredeti működés)
+const bool CALIB_MODE = false;
+
+// Kalibrált értékek (2025. mérés, pH 4.01/6.86/9.18 pufferekből):
+// pH = m × V + b
+float pH_slope     = -5.748;
+float pH_intercept = 21.616;
+// ============================================================
+
+WiFiClientSecure espClient;
+PubSubClient client(espClient);
 
 Adafruit_ADS1115 ads;
 OneWire oneWire(D3);
 DallasTemperature ds18b20(&oneWire);
 Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X);
 
-float pH_cal_value = 21.34;
 unsigned long lastMsg = 0;
+unsigned long lastHeartbeat = 0;
 
-// Adatstruktúra (meg kell egyeznie a Gerinc struktúrájával!)
+uint8_t masterAddress[] = {0xA0, 0x20, 0xA6, 0x19, 0x1A, 0xD8};
+
 typedef struct sensor_data_struct {
   float temp;
   float ph;
@@ -32,72 +52,107 @@ typedef struct sensor_data_struct {
 
 sensor_data_struct myData;
 
-// ÚJ: ESP-NOW küldés visszajelző callback
-void OnDataSent(uint8_t *mac_addr, uint8_t sendStatus) {
-  if (sendStatus == 0) {
-    Serial.println("[ESP-NOW] Adatcsomag SIKERESEN kézbesítve a Gerincnek.");
-  } else {
-    Serial.println("[ESP-NOW] HIBA: Adatcsomag kézbesítés SIKERTELEN! (Kód: " + String(sendStatus) + ")");
-    Serial.println("[ESP-NOW] Lehetséges ok: Node C offline, csatorna eltérés, vagy hatótávolságon kívül.");
+void reconnect() {
+  while (!client.connected()) {
+    String clientId = "NodeA_" + String(random(0xffff), HEX);
+    if (client.connect(clientId.c_str(), mqtt_user, mqtt_pass)) {
+      Serial.println("Node A MQTT Csatlakoztatva!");
+    } else {
+      delay(5000);
+    }
   }
 }
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("\n[NODE A] Szenzor modul indul...");
-
   Wire.begin(4, 5);
   ads.begin();
-  tcs.begin();
   ds18b20.begin();
 
-  // WiFiManager: WiFi csatlakozás (ez határozza meg a csatornát)
+  if (CALIB_MODE) {
+    Serial.println();
+    Serial.println("=============================================");
+    Serial.println("   pH SZENZOR KALIBRACIOS MOD AKTIV");
+    Serial.println("=============================================");
+    Serial.println();
+    Serial.println("Lepes 1: Helyezd a szondat pH 6.86 pufferbe.");
+    Serial.println("         A potmeterrel allitsd a feszultseget ~2.50 V-ra.");
+    Serial.println("Lepes 2: Oblites utan pH 4.01 pufferbe. Jegyezd fel a V erteket.");
+    Serial.println("Lepes 3: Oblites utan pH 9.18 pufferbe. Jegyezd fel a V erteket.");
+    Serial.println();
+    Serial.println("A meres 2 masodpercenkent frissul.");
+    Serial.println("=============================================");
+    Serial.println();
+    return;
+  }
+
+  tcs.begin();
+
   WiFiManager wm;
   wm.autoConnect("AquaSzenzor_AP");
 
-  Serial.print("[WiFi] Csatlakozva! Csatorna: ");
-  Serial.println(WiFi.channel());
-  Serial.print("[WiFi] Szabad heap: ");
-  Serial.print(ESP.getFreeHeap());
-  Serial.println(" byte");
-
-  // ESP-NOW inicializálása
   if (esp_now_init() != 0) {
-    Serial.println("[ESP-NOW] KRITIKUS HIBA: Inicializáció sikertelen!");
+    Serial.println("Hiba az ESP-NOW inicializalasakor!");
     return;
   }
   esp_now_set_self_role(ESP_NOW_ROLE_COMBO);
+  esp_now_add_peer(masterAddress, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
 
-  // ÚJ: Küldés-visszajelzés callback regisztrálása
-  esp_now_register_send_cb(OnDataSent);
-
-  // ÚJ: Peer hozzáadása a WiFi AKTUÁLIS csatornájával
-  // A 0 csatorna "auto"-t jelent, ami problémás lehet, ha a két ESP
-  // különböző routeren van, vagy a router csatornát váltott.
-  // A WiFi.channel() biztosítja a szinkronizációt.
-  uint8_t currentChannel = WiFi.channel();
-  esp_now_add_peer(masterAddress, ESP_NOW_ROLE_COMBO, currentChannel, NULL, 0);
-  Serial.println("[ESP-NOW] Gerinc (Node C) peer hozzáadva, csatorna: " + String(currentChannel));
+  espClient.setInsecure();
+  client.setServer(mqtt_server, 8883);
 }
 
 void loop() {
-  // Nincs MQTT loop — az összes kommunikáció ESP-NOW-on keresztül zajlik.
-  // Ez ~15-20KB RAM megtakarítást jelent a TLS stack eltávolításával.
+
+  // ==========================================================
+  // KALIBRÁLÓ MÓD
+  // ==========================================================
+  if (CALIB_MODE) {
+    if (millis() - lastMsg > 2000) {
+      lastMsg = millis();
+
+      ds18b20.requestTemperatures();
+      float tempC = ds18b20.getTempCByIndex(0);
+      if (tempC < -50 || tempC > 80) tempC = -999.0;
+
+      int16_t adc0 = ads.readADC_SingleEnded(0);
+      float voltsPH = ads.computeVolts(adc0);
+      float ph_calc = pH_slope * voltsPH + pH_intercept;
+
+      Serial.print("Homerseklet: ");
+      Serial.print(tempC, 2);
+      Serial.print(" C  |  pH feszultseg: ");
+      Serial.print(voltsPH, 4);
+      Serial.print(" V  |  ADC nyers: ");
+      Serial.print(adc0);
+      Serial.print("  |  Szamitott pH (jelenlegi keplet): ");
+      Serial.println(ph_calc, 2);
+    }
+    return;
+  }
+
+  // ==========================================================
+  // NORMÁL ÜZEM
+  // ==========================================================
+  if (!client.connected()) reconnect();
+  client.loop();
+
+  if (millis() - lastHeartbeat > 10000) {
+    lastHeartbeat = millis();
+    client.publish("aquarium/health/nodeA", "ONLINE");
+  }
 
   if (millis() - lastMsg > 15000) {
     lastMsg = millis();
 
-    // --- DS18B20 Hőmérséklet ---
     ds18b20.requestTemperatures();
     float tempC = ds18b20.getTempCByIndex(0);
     if (tempC < -50 || tempC > 80) tempC = 25.0;
 
-    // --- pH mérés (ADS1115, A0 csatorna) ---
     int16_t adc0 = ads.readADC_SingleEnded(0);
     float voltsPH = ads.computeVolts(adc0);
-    float ph_act = -5.70 * voltsPH + pH_cal_value;
+    float ph_act = pH_slope * voltsPH + pH_intercept;
 
-    // --- TDS mérés (ADS1115, A1 csatorna) ---
     int16_t adc1 = ads.readADC_SingleEnded(1);
     float voltsTDS = ads.computeVolts(adc1);
     float V_offset = 1.23;
@@ -107,7 +162,6 @@ void loop() {
     float tdsValue = (133.42 * pow(compVolts, 3) - 255.86 * pow(compVolts, 2) + 857.39 * compVolts) * 0.5;
     if (tdsValue < 0) tdsValue = 0;
 
-    // --- TCS34725 Fényszenzor ---
     uint16_t r, g, b, c, colorTemp, lux;
     tcs.getRawData(&r, &g, &b, &c);
     lux = tcs.calculateLux(r, g, b);
@@ -122,7 +176,6 @@ void loop() {
       b_pct = ((float)b / sum) * 100.0;
     }
 
-    // --- Struktúra feltöltése ---
     myData.temp = tempC;
     myData.ph = ph_act;
     myData.tds = tdsValue;
@@ -132,19 +185,7 @@ void loop() {
     myData.g_pct = g_pct;
     myData.b_pct = b_pct;
 
-    // --- Küldés ESP-NOW-val ---
-    int result = esp_now_send(masterAddress, (uint8_t *) &myData, sizeof(myData));
-    if (result != 0) {
-      Serial.println("[ESP-NOW] HIBA: esp_now_send() visszatérési kód: " + String(result));
-    }
-
-    // --- Debug kiírás soros monitorra ---
-    Serial.println("--- Mért értékek ---");
-    Serial.println("  Hőmérséklet: " + String(tempC, 2) + " °C");
-    Serial.println("  pH: " + String(ph_act, 2));
-    Serial.println("  TDS: " + String(tdsValue, 0) + " ppm");
-    Serial.println("  Lux: " + String(lux) + "  Kelvin: " + String(colorTemp));
-    Serial.println("  RGB%: R=" + String(r_pct, 1) + " G=" + String(g_pct, 1) + " B=" + String(b_pct, 1));
-    Serial.println("  Szabad heap: " + String(ESP.getFreeHeap()) + " byte");
+    esp_now_send(masterAddress, (uint8_t *)&myData, sizeof(myData));
+    Serial.println("Adatcsomag elkuldve ESP-NOW-n a Gerincnek.");
   }
 }
