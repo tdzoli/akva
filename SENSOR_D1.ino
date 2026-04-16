@@ -10,21 +10,12 @@
 #include <espnow.h>
 
 const char* mqtt_server = "";
-const char* mqtt_user = ""; 
+const char* mqtt_user = "";
 const char* mqtt_pass = "";
 
-// ============================================================
-// KALIBRÁCIÓ BEÁLLÍTÁSA
-// ============================================================
-// true  = Kalibráló mód (csak Serial-ra ír nyers feszültséget)
-// false = Normál üzem (ESP-NOW + MQTT, eredeti működés)
-const bool CALIB_MODE = false;
-
-// Kalibrált értékek (2025. mérés, pH 4.01/6.86/9.18 pufferekből):
-// pH = m × V + b
-float pH_slope     = -5.748;
-float pH_intercept = 21.616;
-// ============================================================
+// Kalibrált pH képlet
+float pH_slope     = -5.778;
+float pH_intercept = 21.7;
 
 WiFiClientSecure espClient;
 PubSubClient client(espClient);
@@ -68,24 +59,6 @@ void setup() {
   Wire.begin(4, 5);
   ads.begin();
   ds18b20.begin();
-
-  if (CALIB_MODE) {
-    Serial.println();
-    Serial.println("=============================================");
-    Serial.println("   pH SZENZOR KALIBRACIOS MOD AKTIV");
-    Serial.println("=============================================");
-    Serial.println();
-    Serial.println("Lepes 1: Helyezd a szondat pH 6.86 pufferbe.");
-    Serial.println("         A potmeterrel allitsd a feszultseget ~2.50 V-ra.");
-    Serial.println("Lepes 2: Oblites utan pH 4.01 pufferbe. Jegyezd fel a V erteket.");
-    Serial.println("Lepes 3: Oblites utan pH 9.18 pufferbe. Jegyezd fel a V erteket.");
-    Serial.println();
-    Serial.println("A meres 2 masodpercenkent frissul.");
-    Serial.println("=============================================");
-    Serial.println();
-    return;
-  }
-
   tcs.begin();
 
   WiFiManager wm;
@@ -95,6 +68,7 @@ void setup() {
     Serial.println("Hiba az ESP-NOW inicializalasakor!");
     return;
   }
+
   esp_now_set_self_role(ESP_NOW_ROLE_COMBO);
   esp_now_add_peer(masterAddress, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
 
@@ -103,37 +77,6 @@ void setup() {
 }
 
 void loop() {
-
-  // ==========================================================
-  // KALIBRÁLÓ MÓD
-  // ==========================================================
-  if (CALIB_MODE) {
-    if (millis() - lastMsg > 2000) {
-      lastMsg = millis();
-
-      ds18b20.requestTemperatures();
-      float tempC = ds18b20.getTempCByIndex(0);
-      if (tempC < -50 || tempC > 80) tempC = -999.0;
-
-      int16_t adc0 = ads.readADC_SingleEnded(0);
-      float voltsPH = ads.computeVolts(adc0);
-      float ph_calc = pH_slope * voltsPH + pH_intercept;
-
-      Serial.print("Homerseklet: ");
-      Serial.print(tempC, 2);
-      Serial.print(" C  |  pH feszultseg: ");
-      Serial.print(voltsPH, 4);
-      Serial.print(" V  |  ADC nyers: ");
-      Serial.print(adc0);
-      Serial.print("  |  Szamitott pH (jelenlegi keplet): ");
-      Serial.println(ph_calc, 2);
-    }
-    return;
-  }
-
-  // ==========================================================
-  // NORMÁL ÜZEM
-  // ==========================================================
   if (!client.connected()) reconnect();
   client.loop();
 
@@ -168,8 +111,11 @@ void loop() {
     if (lux <= 2) lux = 0;
     colorTemp = (c < 10 || lux == 0) ? 0 : tcs.calculateColorTemperature(r, g, b);
 
-    float r_pct = 0, g_pct = 0, b_pct = 0;
+    float r_pct = 0;
+    float g_pct = 0;
+    float b_pct = 0;
     float sum = r + g + b;
+
     if (sum > 0) {
       r_pct = ((float)r / sum) * 100.0;
       g_pct = ((float)g / sum) * 100.0;
