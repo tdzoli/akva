@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AquaControl Pro Dashboard v1.8</title>
+    <title>AquaControl Pro Dashboard v1.9</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -17,20 +17,21 @@
             --check: #17a2b8;
             --purple: #6f42c1;
             --dark: #343a40;
+            --muted: #6c757d;
         }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #333; }
-        .container { max-width: 700px; margin: 0 auto; }
+        .container { max-width: 980px; margin: 0 auto; }
         h1 { color: #2c3e50; margin-bottom: 20px; text-align: center; }
         .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
         .card h3 { margin: 0 0 15px 0; font-size: 13px; text-transform: uppercase; color: #7f8c8d; letter-spacing: 1px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
-        .diag-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; text-align: center; }
+        .diag-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; }
         .node-badge { padding: 10px 2px; border-radius: 8px; font-weight: bold; font-size: 11px; color: white; transition: 0.3s; word-wrap: break-word; }
         .node-offline { background: var(--danger); animation: pulse 2s infinite; }
         .node-online { background: var(--success); }
         .node-warning { background: var(--warning); color: #333; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
         .stale-data { opacity: 0.3; filter: grayscale(100%); transition: 0.5s; }
-        .water-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px; text-align: center; }
+        .water-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px; text-align: center; }
         .water-label { font-size: 11px; color: #7f8c8d; text-transform: uppercase; font-weight: bold; }
         .value { font-size: 24px; font-weight: bold; color: var(--primary); margin-top: 5px; }
         .value-ph { font-size: 24px; font-weight: bold; color: var(--check); margin-top: 5px; }
@@ -48,6 +49,11 @@
         .threshold-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; padding: 12px; background: #f8f9fa; border-radius: 8px; }
         .threshold-grid small { font-weight: bold; color: #7f8c8d; }
         .threshold-grid input { width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; margin-top: 4px; font-size: 13px; }
+        .chart-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+        .chart-box { border: 1px solid #eee; border-radius: 10px; padding: 12px; background: #fcfdff; }
+        .chart-title { margin: 0 0 10px 0; font-size: 12px; text-transform: uppercase; font-weight: bold; color: var(--muted); letter-spacing: 0.8px; }
+        .chart-wrapper { position: relative; height: 230px; }
+        .chart-status { margin-top: 12px; padding: 10px; border-radius: 8px; font-size: 13px; background: #eef3f7; color: #495057; }
         button { border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; color: white; font-size: 14px; }
         .btn-on { background: var(--success); }
         .btn-off { background: var(--dark); }
@@ -76,15 +82,19 @@
         .fish-item input { margin-right: 15px; }
         #result-box { margin-top: 15px; padding: 15px; border-radius: 8px; display: none; font-size: 14px; }
         #log { font-size: 11px; color: #95a5a6; margin-top: 20px; font-family: monospace; text-align: center; white-space: pre-wrap; }
-
-        .chart-wrap { margin-top: 14px; background: #fff; border: 1px solid #eee; border-radius: 10px; padding: 10px; }
-        .chart-status { margin-top: 10px; font-size: 13px; font-weight: bold; }
-        .history-meta { margin-top: 8px; font-size: 12px; color: #6c757d; }
+        @media (max-width: 760px) {
+            body { padding: 12px; }
+            .container { max-width: 100%; }
+            .diag-grid { grid-template-columns: repeat(2, 1fr); }
+            .water-grid, .light-grid, .settings-grid, .threshold-grid { grid-template-columns: 1fr; }
+            .settings-full { grid-column: span 1; }
+            .chart-wrapper { height: 200px; }
+        }
     </style>
 </head>
 <body>
 <div class="container">
-    <h1>🌊 AquaControl Pro v1.8</h1>
+    <h1>🌊 AquaControl Pro v1.9</h1>
 
     <div id="conn-banner" class="conn-banner"></div>
 
@@ -96,7 +106,7 @@
             <div id="badge-C" class="node-badge node-offline">Gerinc<br>(Node C)</div>
             <div id="badge-SD" class="node-badge node-offline">SD Kártya<br>ISMERETLEN</div>
         </div>
-        <button class="btn-check" onclick="send('aquarium/request', 'CHECK')">🔍 Rendszerállapot szinkronizálása</button>
+        <button class="btn-check" onclick="syncSystem()">🔍 Rendszerállapot szinkronizálása</button>
     </div>
 
     <div class="card" id="sensor-card">
@@ -143,14 +153,23 @@
         </div>
     </div>
 
-    <div class="card sd-dependent" id="history-card">
-        <h3>30 napos trendek (10 percenként mentett adatok)</h3>
-        <button class="btn-main" onclick="requestHistory30d()">📈 Elmúlt 30 nap betöltése SD-ről</button>
-        <div id="history-status" class="chart-status">Még nincs betöltött előzmény.</div>
-        <div id="history-meta" class="history-meta"></div>
-        <div class="chart-wrap"><canvas id="temp-chart"></canvas></div>
-        <div class="chart-wrap"><canvas id="ph-chart"></canvas></div>
-        <div class="chart-wrap"><canvas id="tds-chart"></canvas></div>
+    <div class="card" id="trend-card">
+        <h3>24 órás diagramok (10 percenkénti minták)</h3>
+        <div class="chart-grid">
+            <div class="chart-box">
+                <div class="chart-title">Oldott anyag (TDS)</div>
+                <div class="chart-wrapper"><canvas id="tds-chart"></canvas></div>
+            </div>
+            <div class="chart-box">
+                <div class="chart-title">pH változás</div>
+                <div class="chart-wrapper"><canvas id="ph-chart"></canvas></div>
+            </div>
+            <div class="chart-box">
+                <div class="chart-title">Hőmérséklet változás</div>
+                <div class="chart-wrapper"><canvas id="temp-chart"></canvas></div>
+            </div>
+        </div>
+        <div id="chart-status" class="chart-status">⏳ 24 órás trendadatok betöltése folyamatban...</div>
     </div>
 
     <div class="card sd-dependent">
@@ -171,11 +190,6 @@
         </div>
         <button id="btn-save-settings" class="btn-action sd-dependent" onclick="saveAllSettings()" disabled>💾 Határértékek mentése SD-re</button>
         <div id="settings-result" style="display:none; margin-top:10px; font-weight:bold; font-size:14px; padding:10px; border-radius:8px;"></div>
-    </div>
-
-    <div class="card">
-        <h3>Haletető Automata</h3>
-        <button class="btn-main" style="background: var(--purple);" onclick="send('aquarium/control', '4')">🐟 Etetés indítása</button>
     </div>
 
     <div id="log">Csatlakozás folyamatban...</div>
@@ -200,10 +214,14 @@
     let tempSaveTimer = null;
     let settingsSaveTimer = null;
     let fishCatalogTimer = null;
+    let chartHistoryTimer = null;
     let isSdCardOk = false;
+
     const WATCHDOG_TIMEOUT = 25000;
     const MIN_TEMP_COMPATIBILITY_SPAN = 1.0;
     const MIN_PH_COMPATIBILITY_SPAN = 0.2;
+    const CHART_REQUEST_TIMEOUT = 10000;
+    const MAX_CHART_POINTS = 145;
 
     let lastLightData = { lux: null, kelvin: null, r: 0, g: 0, b: 0 };
     let sysSettings = {
@@ -219,9 +237,11 @@
     let selectionMessage = '';
     let selectionMessageType = 'info';
 
-    let historyLoading = false;
-    let historyBuffer = [];
-    let historyTimer = null;
+    let chartHistory = [];
+    let chartHistoryBuffer = [];
+    let chartHistoryLoading = false;
+    let chartHistoryLastError = '';
+
     let tempChart = null;
     let phChart = null;
     let tdsChart = null;
@@ -258,6 +278,27 @@
             type === 'error' ? 'catalog-error' :
             type === 'loading' ? 'catalog-loading' : 'catalog-warning'
         );
+        el.textContent = text;
+    }
+
+    function updateChartStatus(text, type = 'info') {
+        const el = document.getElementById('chart-status');
+        let bg = '#eef3f7';
+        let color = '#495057';
+
+        if (type === 'ok') {
+            bg = '#d4edda';
+            color = '#155724';
+        } else if (type === 'error') {
+            bg = '#f8d7da';
+            color = '#721c24';
+        } else if (type === 'warning') {
+            bg = '#fff3cd';
+            color = '#856404';
+        }
+
+        el.style.background = bg;
+        el.style.color = color;
         el.textContent = text;
     }
 
@@ -300,13 +341,13 @@
         if (isOk) {
             sdDependentElements.forEach(el => el.classList.remove('sd-disabled'));
             saveSettingsBtn.disabled = false;
-            if (!fishCatalog.length && !fishCatalogLoading) {
-                requestFishCatalog(true);
-            }
+            if (!fishCatalog.length && !fishCatalogLoading) requestFishCatalog(true);
+            if (!chartHistory.length && !chartHistoryLoading) requestChartHistory(true);
         } else {
             sdDependentElements.forEach(el => el.classList.add('sd-disabled'));
             saveSettingsBtn.disabled = true;
             applyBtn.disabled = true;
+
             fishCatalogLoading = false;
             fishCatalog = [];
             fishCatalogBuffer = [];
@@ -314,9 +355,22 @@
             fishCatalogLastError = 'Nincs SD kártya.';
             buildFishListHtml();
             updateCatalogStatus('⚠️ Haladatbázis nem érhető el: nincs SD kártya.', 'error');
+
+            chartHistoryLoading = false;
+            chartHistory = [];
+            chartHistoryBuffer = [];
+            clearTimeout(chartHistoryTimer);
+            chartHistoryLastError = 'Nincs SD kártya.';
+            updateTrendCharts();
+            updateChartStatus('⚠️ A diagramadatok nem érhetők el: nincs SD kártya.', 'error');
         }
 
         renderSelectionResult();
+    }
+
+    function syncSystem() {
+        send('aquarium/request', 'CHECK');
+        requestChartHistory(true);
     }
 
     client.on('connect', () => {
@@ -328,7 +382,7 @@
                 return;
             }
             setTimeout(() => {
-                send('aquarium/request', 'CHECK');
+                syncSystem();
                 requestFishCatalog(true);
             }, 500);
         });
@@ -397,108 +451,15 @@
             }
         }
 
-        if (topic === 'aquarium/fish/catalog') {
-            if (msg === 'BEGIN') {
-                fishCatalogLoading = true;
-                fishCatalogLastError = '';
-                fishCatalogBuffer = [];
-                clearTimeout(fishCatalogTimer);
-                fishCatalogTimer = setTimeout(() => {
-                    fishCatalogLoading = false;
-                    fishCatalogLastError = 'Időtúllépés a haladatbázis átvitelekor.';
-                    buildFishListHtml();
-                    updateCatalogStatus('⚠️ A haladatbázis átvitele megszakadt vagy túl sokáig tartott.', 'error');
-                    updateLog('Haladatbázis betöltési timeout.');
-                }, 7000);
-                buildFishListHtml();
-                updateCatalogStatus('⏳ Haladatbázis betöltése az SD kártyáról...', 'loading');
-                updateLog('Haladatbázis betöltése az SD kártyáról...');
-            } else if (msg === 'END') {
-                clearTimeout(fishCatalogTimer);
-                fishCatalog = [...fishCatalogBuffer].sort((a, b) => a.name.localeCompare(b.name, 'hu'));
-                fishCatalogLoading = false;
-                fishCatalogLastError = '';
-                buildFishListHtml();
-                if (fishCatalog.length) {
-                    updateCatalogStatus(`✅ Haladatbázis betöltve: ${fishCatalog.length} faj.`, 'ok');
-                    updateLog(`Halfajok betöltve az SD kártyáról: ${fishCatalog.length} db`);
-                } else {
-                    updateCatalogStatus('⚠️ A haladatbázis üres.', 'warning');
-                    updateLog('A haladatbázis üres.');
-                }
-            } else if (msg.startsWith('LINE;')) {
-                const parsed = parseFishCatalogLine(msg.substring(5));
-                if (parsed) fishCatalogBuffer.push(parsed);
-            } else if (msg === 'ERROR_SD') {
-                clearTimeout(fishCatalogTimer);
-                fishCatalogLoading = false;
-                fishCatalog = [];
-                fishCatalogBuffer = [];
-                fishCatalogLastError = 'Nincs SD kártya.';
-                buildFishListHtml();
-                updateCatalogStatus('⚠️ A haladatbázis nem tölthető be: nincs SD kártya.', 'error');
-                updateLog('A haladatbázis nem tölthető be: nincs SD kártya.');
-            } else if (msg === 'ERROR_OPEN') {
-                clearTimeout(fishCatalogTimer);
-                fishCatalogLoading = false;
-                fishCatalog = [];
-                fishCatalogBuffer = [];
-                fishCatalogLastError = 'A fish_catalog.csv nem nyitható meg.';
-                buildFishListHtml();
-                updateCatalogStatus('⚠️ A haladatbázis fájl nem nyitható meg.', 'error');
-                updateLog('A haladatbázis fájl nem nyitható meg.');
-            } else if (msg === 'ERROR_MQTT') {
-                clearTimeout(fishCatalogTimer);
-                fishCatalogLoading = false;
-                fishCatalogLastError = 'MQTT átviteli hiba.';
-                buildFishListHtml();
-                updateCatalogStatus('⚠️ MQTT hiba történt a haladatbázis átvitelekor.', 'error');
-                updateLog('A haladatbázis átvitele MQTT hibába futott.');
-            }
-        }
+        if (topic === 'aquarium/fish/catalog') handleFishCatalogMessage(msg);
+        if (topic === 'aquarium/chart/history') handleChartHistoryMessage(msg);
 
-        if (topic === 'aquarium/history/data') {
-            if (msg === 'BEGIN') {
-                historyLoading = true;
-                historyBuffer = [];
-                clearTimeout(historyTimer);
-                historyTimer = setTimeout(() => {
-                    historyLoading = false;
-                    document.getElementById('history-status').innerText = '⚠️ Időtúllépés a history betöltésénél.';
-                }, 25000);
-                document.getElementById('history-status').innerText = '⏳ Előzményadatok fogadása...';
-                document.getElementById('history-meta').innerText = '';
-            } else if (msg === 'END') {
-                clearTimeout(historyTimer);
-                historyLoading = false;
-                if (historyBuffer.length) {
-                    document.getElementById('history-status').innerText = `✅ Előzményadatok betöltve: ${historyBuffer.length} pont`;
-                    renderHistoryCharts();
-                } else {
-                    document.getElementById('history-status').innerText = '⚠️ Nincs megjeleníthető előzményadat.';
-                    document.getElementById('history-meta').innerText = '';
-                    clearHistoryCharts();
-                }
-            } else if (msg === 'EMPTY') {
-                historyBuffer = [];
-            } else if (msg.startsWith('LINE;')) {
-                const parts = msg.split(';');
-                if (parts.length >= 5) {
-                    historyBuffer.push({
-                        ts: parts[1],
-                        temp: parseFloat(parts[2]),
-                        ph: parseFloat(parts[3]),
-                        tds: parseFloat(parts[4])
-                    });
-                }
-            } else if (msg === 'ERROR_SD') {
-                clearTimeout(historyTimer);
-                historyLoading = false;
-                document.getElementById('history-status').innerText = '⚠️ Nincs SD kártya, a history nem tölthető be.';
-            } else if (msg === 'ERROR_OPEN') {
-                clearTimeout(historyTimer);
-                historyLoading = false;
-                document.getElementById('history-status').innerText = '⚠️ A history logfájl nem nyitható meg.';
+        if (topic === 'aquarium/chart/point') {
+            try {
+                const point = JSON.parse(msg);
+                addTrendPoint(point);
+            } catch (e) {
+                console.error('Trend pont parse hiba:', e);
             }
         }
 
@@ -509,6 +470,7 @@
                 if (data.temp !== undefined) document.getElementById('temp-val').innerText = data.temp + ' °C';
                 if (data.ph !== undefined) document.getElementById('ph-val').innerText = data.ph + ' pH';
                 if (data.tds !== undefined) document.getElementById('tds-val').innerText = data.tds + ' ppm';
+
                 if (data.lux !== undefined && data.kelvin !== undefined) {
                     let r = data.r_pct !== undefined ? data.r_pct : 0;
                     let g = data.g_pct !== undefined ? data.g_pct : 0;
@@ -521,6 +483,113 @@
             }
         }
     });
+
+    function handleFishCatalogMessage(msg) {
+        if (msg === 'BEGIN') {
+            fishCatalogLoading = true;
+            fishCatalogLastError = '';
+            fishCatalogBuffer = [];
+            clearTimeout(fishCatalogTimer);
+            fishCatalogTimer = setTimeout(() => {
+                fishCatalogLoading = false;
+                fishCatalogLastError = 'Időtúllépés a haladatbázis átvitelekor.';
+                buildFishListHtml();
+                updateCatalogStatus('⚠️ A haladatbázis átvitele megszakadt vagy túl sokáig tartott.', 'error');
+                updateLog('Haladatbázis betöltési timeout.');
+            }, 7000);
+            buildFishListHtml();
+            updateCatalogStatus('⏳ Haladatbázis betöltése az SD kártyáról...', 'loading');
+            updateLog('Haladatbázis betöltése az SD kártyáról...');
+        } else if (msg === 'END') {
+            clearTimeout(fishCatalogTimer);
+            fishCatalog = [...fishCatalogBuffer].sort((a, b) => a.name.localeCompare(b.name, 'hu'));
+            fishCatalogLoading = false;
+            fishCatalogLastError = '';
+            buildFishListHtml();
+            if (fishCatalog.length) {
+                updateCatalogStatus(`✅ Haladatbázis betöltve: ${fishCatalog.length} faj.`, 'ok');
+                updateLog(`Halfajok betöltve az SD kártyáról: ${fishCatalog.length} db`);
+            } else {
+                updateCatalogStatus('⚠️ A haladatbázis üres.', 'warning');
+                updateLog('A haladatbázis üres.');
+            }
+        } else if (msg.startsWith('LINE;')) {
+            const parsed = parseFishCatalogLine(msg.substring(5));
+            if (parsed) fishCatalogBuffer.push(parsed);
+        } else if (msg === 'ERROR_SD') {
+            clearTimeout(fishCatalogTimer);
+            fishCatalogLoading = false;
+            fishCatalog = [];
+            fishCatalogBuffer = [];
+            fishCatalogLastError = 'Nincs SD kártya.';
+            buildFishListHtml();
+            updateCatalogStatus('⚠️ A haladatbázis nem tölthető be: nincs SD kártya.', 'error');
+            updateLog('A haladatbázis nem tölthető be: nincs SD kártya.');
+        } else if (msg === 'ERROR_OPEN') {
+            clearTimeout(fishCatalogTimer);
+            fishCatalogLoading = false;
+            fishCatalog = [];
+            fishCatalogBuffer = [];
+            fishCatalogLastError = 'A fish_catalog.csv nem nyitható meg.';
+            buildFishListHtml();
+            updateCatalogStatus('⚠️ A haladatbázis fájl nem nyitható meg.', 'error');
+            updateLog('A haladatbázis fájl nem nyitható meg.');
+        } else if (msg === 'ERROR_MQTT') {
+            clearTimeout(fishCatalogTimer);
+            fishCatalogLoading = false;
+            fishCatalogLastError = 'MQTT átviteli hiba.';
+            buildFishListHtml();
+            updateCatalogStatus('⚠️ MQTT hiba történt a haladatbázis átvitelekor.', 'error');
+            updateLog('A haladatbázis átvitele MQTT hibába futott.');
+        }
+    }
+
+    function handleChartHistoryMessage(msg) {
+        if (msg === 'BEGIN') {
+            chartHistoryLoading = true;
+            chartHistoryLastError = '';
+            chartHistoryBuffer = [];
+            clearTimeout(chartHistoryTimer);
+            chartHistoryTimer = setTimeout(() => {
+                chartHistoryLoading = false;
+                chartHistoryLastError = 'Időtúllépés a diagramadatok átvitelekor.';
+                chartHistory = [];
+                updateTrendCharts();
+                updateChartStatus('⚠️ A diagramadatok átvitele megszakadt vagy túl sokáig tartott.', 'error');
+                updateLog('Trend history timeout.');
+            }, CHART_REQUEST_TIMEOUT);
+            updateChartStatus('⏳ Diagramadatok betöltése az SD kártyáról...', 'info');
+        } else if (msg === 'END') {
+            clearTimeout(chartHistoryTimer);
+            chartHistoryLoading = false;
+            chartHistoryLastError = '';
+            chartHistory = normalizeTrendHistory(chartHistoryBuffer);
+            updateTrendCharts();
+        } else if (msg.startsWith('LINE;')) {
+            const parsed = parseTrendLine(msg.substring(5));
+            if (parsed) chartHistoryBuffer.push(parsed);
+        } else if (msg === 'ERROR_SD') {
+            clearTimeout(chartHistoryTimer);
+            chartHistoryLoading = false;
+            chartHistory = [];
+            chartHistoryLastError = 'Nincs SD kártya.';
+            updateTrendCharts();
+            updateChartStatus('⚠️ A diagramadatok nem tölthetők be: nincs SD kártya.', 'error');
+        } else if (msg === 'ERROR_OPEN') {
+            clearTimeout(chartHistoryTimer);
+            chartHistoryLoading = false;
+            chartHistory = [];
+            chartHistoryLastError = 'A trendfájl nem nyitható meg.';
+            updateTrendCharts();
+            updateChartStatus('⚠️ A diagramfájl nem nyitható meg.', 'error');
+        } else if (msg === 'ERROR_MQTT') {
+            clearTimeout(chartHistoryTimer);
+            chartHistoryLoading = false;
+            chartHistoryLastError = 'MQTT átviteli hiba.';
+            updateTrendCharts();
+            updateChartStatus('⚠️ MQTT hiba történt a diagramadatok átvitelekor.', 'error');
+        }
+    }
 
     function getEvalThresholds() {
         return {
@@ -579,93 +648,17 @@
         }[ch]));
     }
 
-    function requestHistory30d() {
-        if (!client.connected || !isSdCardOk || historyLoading) return;
-
-        historyLoading = true;
-        historyBuffer = [];
-        document.getElementById('history-status').innerText = '⏳ History lekérés elküldve...';
-        document.getElementById('history-meta').innerText = '';
-        clearHistoryCharts();
-
-        clearTimeout(historyTimer);
-        historyTimer = setTimeout(() => {
-            if (historyLoading) {
-                historyLoading = false;
-                document.getElementById('history-status').innerText = '⚠️ Nem érkezett válasz a history kérésre.';
-            }
-        }, 25000);
-
-        send('aquarium/request', 'HISTORY_30D');
-    }
-
-    function clearHistoryCharts() {
-        if (tempChart) { tempChart.destroy(); tempChart = null; }
-        if (phChart) { phChart.destroy(); phChart = null; }
-        if (tdsChart) { tdsChart.destroy(); tdsChart = null; }
-    }
-
-    function makeHistoryChart(canvasId, label, data, color, yTitle) {
-        return new Chart(document.getElementById(canvasId), {
-            type: 'line',
-            data: {
-                labels: historyBuffer.map(p => p.ts),
-                datasets: [{
-                    label,
-                    data,
-                    borderColor: color,
-                    backgroundColor: color + '22',
-                    borderWidth: 2,
-                    fill: true,
-                    pointRadius: 0,
-                    tension: 0.15
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {
-                    legend: { display: true }
-                },
-                scales: {
-                    x: {
-                        ticks: {
-                            maxTicksLimit: 10
-                        }
-                    },
-                    y: {
-                        title: {
-                            display: true,
-                            text: yTitle
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    function renderHistoryCharts() {
-        clearHistoryCharts();
-
-        const labels = historyBuffer.map(p => p.ts);
-        if (!labels.length) return;
-
-        tempChart = makeHistoryChart('temp-chart', 'Hőmérséklet (°C)', historyBuffer.map(p => p.temp), '#007bff', '°C');
-        phChart = makeHistoryChart('ph-chart', 'pH', historyBuffer.map(p => p.ph), '#17a2b8', 'pH');
-        tdsChart = makeHistoryChart('tds-chart', 'Oldott anyag (ppm)', historyBuffer.map(p => p.tds), '#6f42c1', 'ppm');
-
-        document.getElementById('history-meta').innerText = `Intervallum: ${labels[0]} → ${labels[labels.length - 1]}`;
-    }
-
     function requestFishCatalog(force = false) {
         if (!client.connected) return;
         if (fishCatalogLoading && !force) return;
+
         fishCatalogLoading = true;
         fishCatalogLastError = '';
         fishCatalogBuffer = [];
         buildFishListHtml();
         updateCatalogStatus('⏳ Haladatbázis lekérése folyamatban...', 'loading');
         updateLog('Haladatbázis kérés elküldve.');
+
         clearTimeout(fishCatalogTimer);
         fishCatalogTimer = setTimeout(() => {
             if (fishCatalogLoading) {
@@ -676,7 +669,31 @@
                 updateLog('Nincs válasz a haladatbázis kérésre.');
             }
         }, 7000);
+
         send('aquarium/request', 'FISH_CATALOG');
+    }
+
+    function requestChartHistory(force = false) {
+        if (!client.connected) return;
+        if (chartHistoryLoading && !force) return;
+
+        chartHistoryLoading = true;
+        chartHistoryLastError = '';
+        chartHistoryBuffer = [];
+        updateChartStatus('⏳ 24 órás trendadatok lekérése folyamatban...', 'info');
+
+        clearTimeout(chartHistoryTimer);
+        chartHistoryTimer = setTimeout(() => {
+            if (chartHistoryLoading) {
+                chartHistoryLoading = false;
+                chartHistoryLastError = 'Nem érkezett válasz a Gerinctől.';
+                chartHistory = [];
+                updateTrendCharts();
+                updateChartStatus('⚠️ Nem érkezett válasz a Gerinctől a diagramadatok kérésére.', 'error');
+            }
+        }, CHART_REQUEST_TIMEOUT);
+
+        send('aquarium/request', 'CHART_HISTORY');
     }
 
     function parseFishCatalogLine(line) {
@@ -694,6 +711,75 @@
         if (!fish.name) return null;
         if ([fish.tempMin, fish.tempMax, fish.phMin, fish.phMax].some(v => Number.isNaN(v))) return null;
         return fish;
+    }
+
+    function parseTrendLine(line) {
+        const parts = line.split(';').map(p => p.trim());
+        if (parts.length < 4) return null;
+
+        const row = {
+            ts: parts[0],
+            temp: parseFloat(parts[1].replace(',', '.')),
+            ph: parseFloat(parts[2].replace(',', '.')),
+            tds: parseFloat(parts[3].replace(',', '.'))
+        };
+
+        if (!row.ts) return null;
+        if ([row.temp, row.ph, row.tds].some(v => Number.isNaN(v))) return null;
+        return row;
+    }
+
+    function parseTrendTimestamp(ts) {
+        const m = ts.match(/^(\d{4})\.(\d{2})\.(\d{2}) (\d{2}):(\d{2})(?::(\d{2}))?$/);
+        if (!m) return null;
+
+        const year = Number(m[1]);
+        const month = Number(m[2]) - 1;
+        const day = Number(m[3]);
+        const hour = Number(m[4]);
+        const minute = Number(m[5]);
+        const second = Number(m[6] || '0');
+
+        return new Date(year, month, day, hour, minute, second);
+    }
+
+    function formatTrendLabel(ts) {
+        const d = parseTrendTimestamp(ts);
+        if (!d) return ts;
+        const dd = String(d.getDate()).padStart(2, '0');
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        return `${dd}. ${hh}:${mm}`;
+    }
+
+    function normalizeTrendHistory(rows) {
+        const normalized = rows
+            .map(row => ({ ...row, date: parseTrendTimestamp(row.ts) }))
+            .filter(row => row.date instanceof Date && !Number.isNaN(row.date.getTime()))
+            .sort((a, b) => a.date - b.date);
+
+        if (!normalized.length) return [];
+
+        const latestTime = normalized[normalized.length - 1].date.getTime();
+        const startTime = latestTime - (24 * 60 * 60 * 1000);
+
+        const filtered = normalized.filter(row => row.date.getTime() >= startTime);
+
+        return filtered.slice(-MAX_CHART_POINTS).map(({ date, ...rest }) => rest);
+    }
+
+    function addTrendPoint(point) {
+        if (!point || !point.ts) return;
+
+        const idx = chartHistory.findIndex(item => item.ts === point.ts);
+        if (idx >= 0) {
+            chartHistory[idx] = point;
+        } else {
+            chartHistory.push(point);
+        }
+
+        chartHistory = normalizeTrendHistory(chartHistory);
+        updateTrendCharts();
     }
 
     function buildFishListHtml() {
@@ -895,6 +981,94 @@
         renderSelectionResult();
         closeModal();
     }
+
+    function createTrendChart(canvasId, label, color) {
+        const ctx = document.getElementById(canvasId).getContext('2d');
+        return new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label,
+                    data: [],
+                    borderColor: color,
+                    backgroundColor: color + '22',
+                    borderWidth: 2,
+                    tension: 0.2,
+                    pointRadius: 2,
+                    pointHoverRadius: 4,
+                    fill: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            maxTicksLimit: 12,
+                            autoSkip: true
+                        }
+                    },
+                    y: {
+                        beginAtZero: false
+                    }
+                }
+            }
+        });
+    }
+
+    function ensureTrendCharts() {
+        if (!tdsChart) tdsChart = createTrendChart('tds-chart', 'TDS (ppm)', '#6f42c1');
+        if (!phChart) phChart = createTrendChart('ph-chart', 'pH', '#17a2b8');
+        if (!tempChart) tempChart = createTrendChart('temp-chart', 'Hőmérséklet (°C)', '#007bff');
+    }
+
+    function updateTrendCharts() {
+        ensureTrendCharts();
+
+        const labels = chartHistory.map(item => formatTrendLabel(item.ts));
+        const tdsValues = chartHistory.map(item => Number(item.tds));
+        const phValues = chartHistory.map(item => Number(item.ph));
+        const tempValues = chartHistory.map(item => Number(item.temp));
+
+        tdsChart.data.labels = labels;
+        tdsChart.data.datasets[0].data = tdsValues;
+        tdsChart.update();
+
+        phChart.data.labels = labels;
+        phChart.data.datasets[0].data = phValues;
+        phChart.update();
+
+        tempChart.data.labels = labels;
+        tempChart.data.datasets[0].data = tempValues;
+        tempChart.update();
+
+        if (!chartHistory.length) {
+            const text = chartHistoryLastError
+                ? `⚠️ ${chartHistoryLastError}`
+                : '⚠️ Még nincs elegendő 10 perces mintapont a diagramhoz.';
+            updateChartStatus(text, chartHistoryLastError ? 'error' : 'warning');
+            return;
+        }
+
+        const first = chartHistory[0].ts;
+        const last = chartHistory[chartHistory.length - 1].ts;
+        updateChartStatus(`✅ Diagram betöltve: ${chartHistory.length} pont | Időablak: ${first} → ${last}`, 'ok');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        ensureTrendCharts();
+        updateTrendCharts();
+    });
 </script>
 </body>
 </html>
