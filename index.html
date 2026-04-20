@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AquaControl</title>
+    <title>AquaControl Pro Dashboard v1.8</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --primary: #007bff;
@@ -75,16 +76,20 @@
         .fish-item input { margin-right: 15px; }
         #result-box { margin-top: 15px; padding: 15px; border-radius: 8px; display: none; font-size: 14px; }
         #log { font-size: 11px; color: #95a5a6; margin-top: 20px; font-family: monospace; text-align: center; white-space: pre-wrap; }
+
+        .chart-wrap { margin-top: 14px; background: #fff; border: 1px solid #eee; border-radius: 10px; padding: 10px; }
+        .chart-status { margin-top: 10px; font-size: 13px; font-weight: bold; }
+        .history-meta { margin-top: 8px; font-size: 12px; color: #6c757d; }
     </style>
 </head>
 <body>
 <div class="container">
-    <h1>🌊 AquaControl</h1>
+    <h1>🌊 AquaControl Pro v1.8</h1>
 
     <div id="conn-banner" class="conn-banner"></div>
 
     <div class="card">
-        <h3>Hálózat és Diagnosztika</h3>
+        <h3>Hálózat & Diagnosztika</h3>
         <div class="diag-grid">
             <div id="badge-A" class="node-badge node-offline">Szenzor<br>(Node A)</div>
             <div id="badge-B" class="node-badge node-offline">Vezérlés<br>(Node B)</div>
@@ -95,7 +100,7 @@
     </div>
 
     <div class="card" id="sensor-card">
-        <h3>Vízminőség és Hőmérséklet</h3>
+        <h3>Vízminőség & Hőmérséklet</h3>
         <div class="water-grid">
             <div><div class="water-label">Hőmérséklet</div><div id="temp-val" class="value">-- °C</div></div>
             <div><div class="water-label">Kémhatás</div><div id="ph-val" class="value-ph">-- pH</div></div>
@@ -110,7 +115,7 @@
     </div>
 
     <div class="card" id="light-card">
-        <h3>Fényviszonyok és Spektrum</h3>
+        <h3>Fényviszonyok & Spektrum</h3>
         <div class="light-grid">
             <div>
                 <small style="color:#7f8c8d; text-transform:uppercase;">Fényerő (Lux)</small>
@@ -138,8 +143,18 @@
         </div>
     </div>
 
+    <div class="card sd-dependent" id="history-card">
+        <h3>30 napos trendek (10 percenként mentett adatok)</h3>
+        <button class="btn-main" onclick="requestHistory30d()">📈 Elmúlt 30 nap betöltése SD-ről</button>
+        <div id="history-status" class="chart-status">Még nincs betöltött előzmény.</div>
+        <div id="history-meta" class="history-meta"></div>
+        <div class="chart-wrap"><canvas id="temp-chart"></canvas></div>
+        <div class="chart-wrap"><canvas id="ph-chart"></canvas></div>
+        <div class="chart-wrap"><canvas id="tds-chart"></canvas></div>
+    </div>
+
     <div class="card sd-dependent">
-        <h3>Telegram Értesítések és Határértékek</h3>
+        <h3>Telegram Értesítések & Határértékek</h3>
         <div class="settings-grid">
             <div class="settings-full">
                 <small style="color:#7f8c8d; font-weight:bold;">Telegram Chat ID (üresen hagyható):</small>
@@ -203,6 +218,13 @@
     let selectionResult = null;
     let selectionMessage = '';
     let selectionMessageType = 'info';
+
+    let historyLoading = false;
+    let historyBuffer = [];
+    let historyTimer = null;
+    let tempChart = null;
+    let phChart = null;
+    let tdsChart = null;
 
     const host = 'wss://4769a5772b894e1ea634b4eff4b1c6cd.s1.eu.hivemq.cloud:8884/mqtt';
     const client = mqtt.connect(host, {
@@ -435,6 +457,51 @@
             }
         }
 
+        if (topic === 'aquarium/history/data') {
+            if (msg === 'BEGIN') {
+                historyLoading = true;
+                historyBuffer = [];
+                clearTimeout(historyTimer);
+                historyTimer = setTimeout(() => {
+                    historyLoading = false;
+                    document.getElementById('history-status').innerText = '⚠️ Időtúllépés a history betöltésénél.';
+                }, 25000);
+                document.getElementById('history-status').innerText = '⏳ Előzményadatok fogadása...';
+                document.getElementById('history-meta').innerText = '';
+            } else if (msg === 'END') {
+                clearTimeout(historyTimer);
+                historyLoading = false;
+                if (historyBuffer.length) {
+                    document.getElementById('history-status').innerText = `✅ Előzményadatok betöltve: ${historyBuffer.length} pont`;
+                    renderHistoryCharts();
+                } else {
+                    document.getElementById('history-status').innerText = '⚠️ Nincs megjeleníthető előzményadat.';
+                    document.getElementById('history-meta').innerText = '';
+                    clearHistoryCharts();
+                }
+            } else if (msg === 'EMPTY') {
+                historyBuffer = [];
+            } else if (msg.startsWith('LINE;')) {
+                const parts = msg.split(';');
+                if (parts.length >= 5) {
+                    historyBuffer.push({
+                        ts: parts[1],
+                        temp: parseFloat(parts[2]),
+                        ph: parseFloat(parts[3]),
+                        tds: parseFloat(parts[4])
+                    });
+                }
+            } else if (msg === 'ERROR_SD') {
+                clearTimeout(historyTimer);
+                historyLoading = false;
+                document.getElementById('history-status').innerText = '⚠️ Nincs SD kártya, a history nem tölthető be.';
+            } else if (msg === 'ERROR_OPEN') {
+                clearTimeout(historyTimer);
+                historyLoading = false;
+                document.getElementById('history-status').innerText = '⚠️ A history logfájl nem nyitható meg.';
+            }
+        }
+
         if (topic === 'aquarium/sensor/data') {
             triggerHeartbeat('A');
             try {
@@ -510,6 +577,84 @@
             '"': '&quot;',
             "'": '&#39;'
         }[ch]));
+    }
+
+    function requestHistory30d() {
+        if (!client.connected || !isSdCardOk || historyLoading) return;
+
+        historyLoading = true;
+        historyBuffer = [];
+        document.getElementById('history-status').innerText = '⏳ History lekérés elküldve...';
+        document.getElementById('history-meta').innerText = '';
+        clearHistoryCharts();
+
+        clearTimeout(historyTimer);
+        historyTimer = setTimeout(() => {
+            if (historyLoading) {
+                historyLoading = false;
+                document.getElementById('history-status').innerText = '⚠️ Nem érkezett válasz a history kérésre.';
+            }
+        }, 25000);
+
+        send('aquarium/request', 'HISTORY_30D');
+    }
+
+    function clearHistoryCharts() {
+        if (tempChart) { tempChart.destroy(); tempChart = null; }
+        if (phChart) { phChart.destroy(); phChart = null; }
+        if (tdsChart) { tdsChart.destroy(); tdsChart = null; }
+    }
+
+    function makeHistoryChart(canvasId, label, data, color, yTitle) {
+        return new Chart(document.getElementById(canvasId), {
+            type: 'line',
+            data: {
+                labels: historyBuffer.map(p => p.ts),
+                datasets: [{
+                    label,
+                    data,
+                    borderColor: color,
+                    backgroundColor: color + '22',
+                    borderWidth: 2,
+                    fill: true,
+                    pointRadius: 0,
+                    tension: 0.15
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { display: true }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            maxTicksLimit: 10
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: yTitle
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function renderHistoryCharts() {
+        clearHistoryCharts();
+
+        const labels = historyBuffer.map(p => p.ts);
+        if (!labels.length) return;
+
+        tempChart = makeHistoryChart('temp-chart', 'Hőmérséklet (°C)', historyBuffer.map(p => p.temp), '#007bff', '°C');
+        phChart = makeHistoryChart('ph-chart', 'pH', historyBuffer.map(p => p.ph), '#17a2b8', 'pH');
+        tdsChart = makeHistoryChart('tds-chart', 'Oldott anyag (ppm)', historyBuffer.map(p => p.tds), '#6f42c1', 'ppm');
+
+        document.getElementById('history-meta').innerText = `Intervallum: ${labels[0]} → ${labels[labels.length - 1]}`;
     }
 
     function requestFishCatalog(force = false) {
