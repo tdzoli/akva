@@ -31,11 +31,13 @@
         .node-warning { background: var(--warning); color: #333; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
         .stale-data { opacity: 0.3; filter: grayscale(100%); transition: 0.5s; }
+
         .water-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px; text-align: center; }
         .water-label { font-size: 11px; color: #7f8c8d; text-transform: uppercase; font-weight: bold; }
         .value { font-size: 24px; font-weight: bold; color: var(--primary); margin-top: 5px; }
         .value-ph { font-size: 24px; font-weight: bold; color: var(--check); margin-top: 5px; }
         .value-tds { font-size: 24px; font-weight: bold; color: var(--purple); margin-top: 5px; }
+
         .light-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px; text-align: center; }
         .light-sub-val { font-size: 20px; font-weight: bold; color: #444; }
         .light-msg { font-size: 12px; margin-top: 5px; font-weight: 600; min-height: 18px; padding: 4px; border-radius: 4px; }
@@ -43,12 +45,15 @@
         .msg-ok { background: #d4edda; color: #155724; }
         .msg-warn { background: #fff3cd; color: #856404; }
         .msg-err { background: #f8d7da; color: #721c24; }
+
         .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; margin-bottom: 15px; }
         .settings-grid input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; margin-top: 4px; }
         .settings-full { grid-column: span 2; }
+
         .threshold-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; padding: 12px; background: #f8f9fa; border-radius: 8px; }
         .threshold-grid small { font-weight: bold; color: #7f8c8d; }
         .threshold-grid input { width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; margin-top: 4px; font-size: 13px; }
+
         .chart-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
         .chart-box { border: 1px solid #eee; border-radius: 10px; padding: 12px; background: #fcfdff; }
         .chart-title { margin: 0 0 10px 0; font-size: 12px; text-transform: uppercase; font-weight: bold; color: var(--muted); letter-spacing: 0.8px; }
@@ -57,6 +62,7 @@
         .chart-view-switch { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
         .chart-view-btn { background:#dee2e6; color:#343a40; flex:1; min-width:160px; }
         .chart-view-btn.active { background:var(--primary); color:white; }
+
         button { border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; color: white; font-size: 14px; }
         .btn-on { background: var(--success); }
         .btn-off { background: var(--dark); }
@@ -66,16 +72,20 @@
         .btn-purple { background: var(--purple); width: 100%; margin-top: 8px; }
         button:disabled { background: #ccc; cursor: not-allowed; opacity: 0.6; }
         button:hover:not(:disabled) { opacity: 0.85; transform: translateY(-1px); }
+
         .sd-dependent { transition: all 0.4s ease-in-out; }
         .sd-disabled { filter: grayscale(100%); opacity: 0.45; pointer-events: none; cursor: not-allowed; border: 1px dashed #999; }
+
         .conn-banner { display: none; padding: 10px; text-align: center; font-weight: bold; font-size: 13px; border-radius: 8px; margin-bottom: 10px; }
         .conn-offline { display: block; background: var(--danger); color: white; }
         .conn-reconnecting { display: block; background: var(--warning); color: #333; }
+
         .catalog-status { font-size: 13px; font-weight: bold; padding: 10px; border-radius: 8px; margin-top: 10px; }
         .catalog-loading { background: #e9ecef; color: #495057; }
         .catalog-ok { background: #d4edda; color: #155724; }
         .catalog-error { background: #f8d7da; color: #721c24; }
         .catalog-warning { background: #fff3cd; color: #856404; }
+
         #fish-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; }
         .modal-content { background: white; width: 90%; max-width: 520px; margin: 40px auto; border-radius: 15px; max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; }
         .modal-header, .modal-footer { padding: 15px 20px; background: #f8f9fa; }
@@ -83,8 +93,10 @@
         #fish-list-container { padding: 10px 20px; overflow-y: auto; flex-grow: 1; }
         .fish-item { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
         .fish-item input { margin-right: 15px; }
+
         #result-box { margin-top: 15px; padding: 15px; border-radius: 8px; display: none; font-size: 14px; }
         #log { font-size: 11px; color: #95a5a6; margin-top: 20px; font-family: monospace; text-align: center; white-space: pre-wrap; }
+
         @media (max-width: 760px) {
             body { padding: 12px; }
             .container { max-width: 100%; }
@@ -320,6 +332,7 @@
     function triggerHeartbeat(node) {
         const badge = document.getElementById('badge-' + node);
         badge.className = 'node-badge node-online';
+
         if (node === 'A') badge.innerHTML = 'Szenzor<br>(Node A)';
         if (node === 'B') badge.innerHTML = 'Vezérlés<br>(Node B)';
         if (node === 'C') badge.innerHTML = 'Gerinc<br>(Node C)';
@@ -334,10 +347,12 @@
             badge.className = 'node-badge node-offline';
             badge.innerHTML = `Node ${node}<br>OFFLINE`;
             updateLog(`⚠️ Node ${node} kapcsolat megszakadt!`);
+
             if (node === 'A') {
                 document.getElementById('sensor-card').classList.add('stale-data');
                 document.getElementById('light-card').classList.add('stale-data');
             }
+
             if (node === 'C') {
                 const sdBadge = document.getElementById('badge-SD');
                 sdBadge.className = 'node-badge node-offline';
@@ -349,6 +364,7 @@
 
     function updateSdUI(isOk) {
         isSdCardOk = isOk;
+
         const sdDependentElements = document.querySelectorAll('.sd-dependent');
         const applyBtn = document.getElementById('btn-set-temp');
         const saveSettingsBtn = document.getElementById('btn-save-settings');
@@ -356,6 +372,7 @@
         if (isOk) {
             sdDependentElements.forEach(el => el.classList.remove('sd-disabled'));
             saveSettingsBtn.disabled = false;
+
             if (!fishCatalog.length && !fishCatalogLoading) requestFishCatalog(true);
             if (!getCurrentChartHistory().length && !isCurrentChartHistoryLoading()) requestChartHistory(true);
         } else {
@@ -398,11 +415,13 @@
     client.on('connect', () => {
         setConnBanner('online');
         updateLog('Csatlakozva a Brokerhez.');
+
         client.subscribe('aquarium/#', (err) => {
             if (err) {
                 updateLog('MQTT subscribe hiba: ' + err.message);
                 return;
             }
+
             setTimeout(() => {
                 syncSystem();
                 requestFishCatalog(true);
@@ -426,6 +445,7 @@
 
         if (topic === 'aquarium/health/sdcard') {
             const sdBadge = document.getElementById('badge-SD');
+
             if (msg === 'OK') {
                 sdBadge.className = 'node-badge node-online';
                 sdBadge.innerHTML = 'SD Kártya<br>OK';
@@ -439,6 +459,7 @@
 
         if (topic === 'aquarium/settings/state') {
             const parts = msg.split(';');
+
             if (parts.length >= 10) {
                 sysSettings.setpoint = parseFloat(parts[0]);
                 document.getElementById('ideal-temp-val').innerText = `Aktív célérték (Gerinc memóriája): ${sysSettings.setpoint} °C`;
@@ -497,8 +518,10 @@
 
         if (topic === 'aquarium/sensor/data') {
             triggerHeartbeat('A');
+
             try {
                 const data = JSON.parse(msg);
+
                 if (data.temp !== undefined) document.getElementById('temp-val').innerText = data.temp + ' °C';
                 if (data.ph !== undefined) document.getElementById('ph-val').innerText = data.ph + ' pH';
                 if (data.tds !== undefined) document.getElementById('tds-val').innerText = data.tds + ' ppm';
@@ -507,6 +530,7 @@
                     let r = data.r_pct !== undefined ? data.r_pct : 0;
                     let g = data.g_pct !== undefined ? data.g_pct : 0;
                     let b = data.b_pct !== undefined ? data.b_pct : 0;
+
                     lastLightData = { lux: data.lux, kelvin: data.kelvin, r, g, b };
                     evaluateLightData(data.lux, data.kelvin, r, g, b);
                 }
@@ -521,6 +545,7 @@
             fishCatalogLoading = true;
             fishCatalogLastError = '';
             fishCatalogBuffer = [];
+
             clearTimeout(fishCatalogTimer);
             fishCatalogTimer = setTimeout(() => {
                 fishCatalogLoading = false;
@@ -529,6 +554,7 @@
                 updateCatalogStatus('⚠️ A haladatbázis átvitele megszakadt vagy túl sokáig tartott.', 'error');
                 updateLog('Haladatbázis betöltési timeout.');
             }, 7000);
+
             buildFishListHtml();
             updateCatalogStatus('⏳ Haladatbázis betöltése az SD kártyáról...', 'loading');
             updateLog('Haladatbázis betöltése az SD kártyáról...');
@@ -538,6 +564,7 @@
             fishCatalogLoading = false;
             fishCatalogLastError = '';
             buildFishListHtml();
+
             if (fishCatalog.length) {
                 updateCatalogStatus(`✅ Haladatbázis betöltve: ${fishCatalog.length} faj.`, 'ok');
                 updateLog(`Halfajok betöltve az SD kártyáról: ${fishCatalog.length} db`);
@@ -576,24 +603,17 @@
         }
     }
 
-
     function getChartViewMeta(view) {
         return view === '30d'
             ? {
                 key: '30d',
                 title: '30 napos',
-                requestMessage: 'CHART_HISTORY_30D',
-                historyTopic: 'aquarium/chart/history/30d',
-                pointTopic: 'aquarium/chart/point/30d',
-                timerName: 'chartHistory30dTimer'
+                requestMessage: 'CHART_HISTORY_30D'
             }
             : {
                 key: '24h',
                 title: '24 órás',
-                requestMessage: 'CHART_HISTORY_24H',
-                historyTopic: 'aquarium/chart/history/24h',
-                pointTopic: 'aquarium/chart/point/24h',
-                timerName: 'chartHistory24hTimer'
+                requestMessage: 'CHART_HISTORY_24H'
             };
     }
 
@@ -639,8 +659,8 @@
 
     function setChartView(view) {
         if (view !== '24h' && view !== '30d') return;
-        currentChartView = view;
 
+        currentChartView = view;
         document.getElementById('btn-view-24h').classList.toggle('active', view === '24h');
         document.getElementById('btn-view-30d').classList.toggle('active', view === '30d');
 
@@ -659,15 +679,18 @@
             store.loading = true;
             store.error = '';
             store.buffer = [];
+
             clearTimeout(store.timer);
             store.timer = setTimeout(() => {
                 store.loading = false;
                 store.error = `Időtúllépés a ${meta.title.toLowerCase()} diagramadatok átvitelekor.`;
                 store.history = [];
+
                 if (currentChartView === view) {
                     updateTrendCharts();
                     updateChartStatus(`⚠️ ${store.error}`, 'error');
                 }
+
                 updateLog(`${meta.title} diagram betöltési timeout.`);
             }, CHART_REQUEST_TIMEOUT);
 
@@ -679,6 +702,7 @@
             store.loading = false;
             store.error = '';
             store.history = normalizeTrendHistory(store.buffer);
+
             if (currentChartView === view) updateTrendCharts();
             updateLog(`${meta.title} trendadatok betöltve: ${store.history.length} pont.`);
         } else if (msg.startsWith('LINE;')) {
@@ -689,6 +713,7 @@
             store.loading = false;
             store.history = [];
             store.error = 'Nincs SD kártya.';
+
             if (currentChartView === view) {
                 updateTrendCharts();
                 updateChartStatus(`⚠️ A ${meta.title.toLowerCase()} diagramadatok nem érhetők el: nincs SD kártya.`, 'error');
@@ -697,7 +722,10 @@
             clearTimeout(store.timer);
             store.loading = false;
             store.history = [];
-            store.error = view === '30d' ? 'A 30 napos trendfájl nem nyitható meg.' : 'A 24 órás trendfájl nem nyitható meg.';
+            store.error = view === '30d'
+                ? 'A 30 napos trendfájl nem nyitható meg.'
+                : 'A 24 órás trendfájl nem nyitható meg.';
+
             if (currentChartView === view) {
                 updateTrendCharts();
                 updateChartStatus(`⚠️ ${store.error}`, 'error');
@@ -706,11 +734,30 @@
             clearTimeout(store.timer);
             store.loading = false;
             store.error = 'MQTT átviteli hiba.';
+
             if (currentChartView === view) {
                 updateTrendCharts();
                 updateChartStatus(`⚠️ ${store.error}`, 'error');
             }
         }
+    }
+
+    function parseFishCatalogLine(line) {
+        const parts = line.split(';').map(p => p.trim());
+        if (parts.length < 5) return null;
+
+        const fish = {
+            name: parts[0],
+            tempMin: parseFloat(parts[1].replace(',', '.')),
+            tempMax: parseFloat(parts[2].replace(',', '.')),
+            phMin: parseFloat(parts[3].replace(',', '.')),
+            phMax: parseFloat(parts[4].replace(',', '.'))
+        };
+
+        if (!fish.name) return null;
+        if ([fish.tempMin, fish.tempMax, fish.phMin, fish.phMax].some(v => Number.isNaN(v))) return null;
+
+        return fish;
     }
 
     function parseTrendHistoryLine(line) {
@@ -735,14 +782,26 @@
     function parseTrendTimestamp(ts) {
         const match = ts.match(/^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$/);
         if (!match) return 0;
-        const [, y, m, d, hh, mm, ss] = match.map(Number);
-        return new Date(y, m - 1, d, hh, mm, ss).getTime();
+
+        const year = Number(match[1]);
+        const month = Number(match[2]);
+        const day = Number(match[3]);
+        const hh = Number(match[4]);
+        const mm = Number(match[5]);
+        const ss = Number(match[6]);
+
+        return new Date(year, month - 1, day, hh, mm, ss).getTime();
     }
 
     function formatTrendLabel(ts) {
         const match = ts.match(/^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$/);
         if (!match) return ts;
-        const [, y, m, d, hh, mm] = match;
+
+        const m = match[2];
+        const d = match[3];
+        const hh = match[4];
+        const mm = match[5];
+
         return currentChartView === '30d'
             ? `${m}.${d}. ${hh}:${mm}`
             : `${hh}:${mm}`;
@@ -759,6 +818,7 @@
         store.loading = true;
         store.error = '';
         store.buffer = [];
+
         if (currentChartView === view) {
             updateTrendCharts();
             updateChartStatus(`⏳ ${meta.title} trendadatok lekérése folyamatban...`, 'info');
@@ -770,10 +830,12 @@
                 store.loading = false;
                 store.error = 'Nem érkezett válasz a Gerinctől.';
                 store.history = [];
+
                 if (currentChartView === view) {
                     updateTrendCharts();
                     updateChartStatus(`⚠️ Nem érkezett válasz a Gerinctől a ${meta.title.toLowerCase()} diagramadatok kérésére.`, 'error');
                 }
+
                 updateLog(`Nincs válasz a ${meta.title.toLowerCase()} diagramadatok kérésére.`);
             }
         }, CHART_REQUEST_TIMEOUT);
@@ -800,7 +862,6 @@
         }
     }
 
-    function getEvalThresholds() {
     function getEvalThresholds() {
         return {
             luxMin: parseInt(document.getElementById('eval-lux-min').value) || 100,
@@ -898,30 +959,31 @@
             return;
         }
 
-        container.innerHTML = fishCatalog
-            .map(f => `
-                <div class="fish-item">
-                    <input type="checkbox" class="fish-chk"
-                        data-name="${escapeHtml(f.name)}"
-                        data-temp-min="${f.tempMin}"
-                        data-temp-max="${f.tempMax}"
-                        data-ph-min="${f.phMin}"
-                        data-ph-max="${f.phMax}">
-                    <span><strong>${escapeHtml(f.name)}</strong><br><small>${f.tempMin.toFixed(1)}-${f.tempMax.toFixed(1)}°C | pH ${f.phMin.toFixed(1)}-${f.phMax.toFixed(1)}</small></span>
-                </div>
-            `).join('');
+        container.innerHTML = fishCatalog.map(f => `
+            <div class="fish-item">
+                <input type="checkbox" class="fish-chk"
+                    data-name="${escapeHtml(f.name)}"
+                    data-temp-min="${f.tempMin}"
+                    data-temp-max="${f.tempMax}"
+                    data-ph-min="${f.phMin}"
+                    data-ph-max="${f.phMax}">
+                <span><strong>${escapeHtml(f.name)}</strong><br><small>${f.tempMin.toFixed(1)}-${f.tempMax.toFixed(1)}°C | pH ${f.phMin.toFixed(1)}-${f.phMax.toFixed(1)}</small></span>
+            </div>
+        `).join('');
 
         filterFish();
     }
 
     function getSelectionMessageHtml() {
         if (!selectionMessage) return '';
+
         const palette = {
             success: { bg: 'var(--success)', color: 'white' },
             warn: { bg: 'var(--warning)', color: '#333' },
             error: { bg: 'var(--danger)', color: 'white' },
             info: { bg: '#e9ecef', color: '#333' }
         };
+
         const current = palette[selectionMessageType] || palette.info;
         return `<div style="margin-top:10px; padding:10px; border-radius:8px; background:${current.bg}; color:${current.color}; font-weight:bold;">${selectionMessage}</div>`;
     }
@@ -964,19 +1026,24 @@
     function buildSettingsString() {
         let cid = document.getElementById('chat-id').value.trim();
         if (cid === '') cid = '0';
+
         return `${sysSettings.setpoint};${document.getElementById('t-min').value || 0};${document.getElementById('t-max').value || 0};${document.getElementById('ph-min').value || 0};${document.getElementById('ph-max').value || 0};${document.getElementById('tds-min').value || 0};${document.getElementById('tds-max').value || 0};${document.getElementById('lux-min').value || 0};${document.getElementById('lux-max').value || 0};${cid}`;
     }
 
     function saveAllSettings() {
         if (!isSdCardOk) return;
+
         const btn = document.getElementById('btn-save-settings');
         const res = document.getElementById('settings-result');
+
         btn.disabled = true;
         res.style.display = 'block';
         res.style.background = 'var(--warning)';
         res.style.color = '#333';
         res.innerHTML = '⏳ Várakozás a Gerinc (Node C) megerősítésére...';
+
         send('aquarium/settings/set', buildSettingsString());
+
         settingsSaveTimer = setTimeout(() => {
             res.style.background = 'var(--danger)';
             res.style.color = 'white';
@@ -988,12 +1055,15 @@
 
     function applyTemperature() {
         if (!isSdCardOk || !selectionResult || !selectionResult.compatible || !selectionResult.setpoint) return;
+
         sysSettings.setpoint = selectionResult.setpoint;
         document.getElementById('btn-set-temp').disabled = true;
         selectionMessage = '⏳ Várakozás a Gerinc (Node C) megerősítésére...';
         selectionMessageType = 'warn';
         renderSelectionResult();
+
         send('aquarium/settings/set', buildSettingsString());
+
         tempSaveTimer = setTimeout(() => {
             selectionMessage = '⚠️ HIBA: A mentés sikertelen!';
             selectionMessageType = 'error';
@@ -1014,6 +1084,7 @@
         document.getElementById('fishSearch').value = '';
         buildFishListHtml();
         document.getElementById('fish-modal').style.display = 'block';
+
         if (!fishCatalog.length && !fishCatalogLoading) requestFishCatalog(true);
     }
 
@@ -1030,6 +1101,7 @@
 
     function processSelection() {
         const selected = Array.from(document.querySelectorAll('.fish-chk:checked'));
+
         if (selected.length === 0) {
             selectionResult = null;
             selectionMessage = '';
@@ -1048,6 +1120,7 @@
             const tMax = parseFloat(chk.dataset.tempMax);
             const pMin = parseFloat(chk.dataset.phMin);
             const pMax = parseFloat(chk.dataset.phMax);
+
             if (tMin > commonTempMin) commonTempMin = tMin;
             if (tMax < commonTempMax) commonTempMax = tMax;
             if (pMin > commonPhMin) commonPhMin = pMin;
@@ -1085,6 +1158,7 @@
 
     function createTrendChart(canvasId, label, color) {
         const ctx = document.getElementById(canvasId).getContext('2d');
+
         return new Chart(ctx, {
             type: 'line',
             data: {
@@ -1141,7 +1215,6 @@
         if (!tempChart) tempChart = createTrendChart('temp-chart', 'Hőmérséklet (°C)', '#007bff');
     }
 
-
     function updateTrendCharts() {
         ensureTrendCharts();
 
@@ -1176,6 +1249,7 @@
                 : (isMonthly
                     ? '⚠️ Még nincs elegendő 4 órás mintapont a 30 napos diagramhoz.'
                     : '⚠️ Még nincs elegendő 10 perces mintapont a 24 órás diagramhoz.');
+
             updateChartStatus(text, activeError ? 'error' : 'warning');
             return;
         }
@@ -1183,10 +1257,11 @@
         const first = activeHistory[0].ts;
         const last = activeHistory[activeHistory.length - 1].ts;
         const label = isMonthly ? '30 napos diagram' : '24 órás diagram';
+
         updateChartStatus(`✅ ${label} betöltve: ${activeHistory.length} pont | Időablak: ${first} → ${last}`, 'ok');
     }
 
-    document.addEventListener('DOMContentLoaded'    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', () => {
         ensureTrendCharts();
         setChartView('24h');
     });
