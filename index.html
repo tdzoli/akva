@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AquaControl Pro Dashboard v1.9</title>
+    <title>AquaControl Pro Dashboard v2.0</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -50,7 +50,7 @@
 
             --log-text: #95a5a6;
 
-            --theme-btn-bg: rgba(255,255,255,0.9);
+            --theme-btn-bg: rgba(255,255,255,0.95);
             --theme-btn-border: rgba(0,0,0,0.08);
             --theme-btn-text: #2c3e50;
             --theme-btn-active-bg: #343a40;
@@ -73,7 +73,7 @@
 
             --surface-1: #1a1a1a;
             --surface-2: #20252b;
-            --surface-3: #2a2a2a;
+            --surface-3: #2f2f2f;
 
             --input-bg: #181818;
             --input-border: #3a3f46;
@@ -85,7 +85,7 @@
             --chart-grid: rgba(255,255,255,0.14);
             --chart-tick: #d6dde5;
 
-            --modal-overlay: rgba(0,0,0,0.8);
+            --modal-overlay: rgba(0,0,0,0.82);
             --modal-bg: #121212;
             --modal-header-bg: #1b1b1b;
             --fish-item-border: #2a2a2a;
@@ -101,6 +101,8 @@
 
         * { box-sizing: border-box; }
 
+        html { -webkit-text-size-adjust: 100%; }
+
         body {
             font-family: 'Segoe UI', sans-serif;
             background: var(--bg);
@@ -110,39 +112,51 @@
             transition: background-color 0.25s ease, color 0.25s ease;
         }
 
-        .container { max-width: 980px; margin: 0 auto; }
+        .container {
+            max-width: 980px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            margin-bottom: 8px;
+        }
 
         h1 {
             color: var(--heading);
-            margin-bottom: 20px;
+            margin: 0 0 20px 0;
             text-align: center;
+            font-size: clamp(24px, 4vw, 34px);
+            line-height: 1.2;
+            padding-right: 0;
         }
 
         .theme-toggle {
-            position: fixed;
-            top: 16px;
-            right: 16px;
-            z-index: 1200;
-            display: flex;
+            display: inline-flex;
             gap: 8px;
             background: transparent;
+            flex-shrink: 0;
         }
 
         .theme-btn {
-            width: 44px;
-            height: 44px;
+            width: 46px;
+            height: 46px;
             border-radius: 999px;
             border: 1px solid var(--theme-btn-border);
             background: var(--theme-btn-bg);
             color: var(--theme-btn-text);
-            font-size: 20px;
             cursor: pointer;
-            display: flex;
+            display: inline-flex;
             align-items: center;
             justify-content: center;
             box-shadow: 0 4px 14px rgba(0,0,0,0.12);
             transition: 0.2s;
             backdrop-filter: blur(6px);
+            -webkit-tap-highlight-color: transparent;
+            padding: 0;
         }
 
         .theme-btn:hover {
@@ -154,6 +168,18 @@
             background: var(--theme-btn-active-bg);
             color: var(--theme-btn-active-text);
             border-color: transparent;
+        }
+
+        .theme-btn svg {
+            width: 22px;
+            height: 22px;
+            display: block;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            pointer-events: none;
         }
 
         .card {
@@ -178,19 +204,26 @@
 
         .diag-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(4, minmax(0, 1fr));
             gap: 8px;
             text-align: center;
         }
 
         .node-badge {
-            padding: 10px 2px;
+            padding: 10px 6px;
             border-radius: 8px;
             font-weight: bold;
             font-size: 11px;
             color: white;
             transition: 0.3s;
             word-wrap: break-word;
+            overflow-wrap: break-word;
+            min-height: 58px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            line-height: 1.25;
         }
 
         .node-offline { background: var(--danger); animation: pulse 2s infinite; }
@@ -211,7 +244,7 @@
 
         .water-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 10px;
             margin-bottom: 15px;
             text-align: center;
@@ -224,26 +257,18 @@
             font-weight: bold;
         }
 
-        .value {
-            font-size: 24px;
-            font-weight: bold;
-            color: var(--primary);
-            margin-top: 5px;
-        }
-
-        .value-ph {
-            font-size: 24px;
-            font-weight: bold;
-            color: var(--check);
-            margin-top: 5px;
-        }
-
+        .value,
+        .value-ph,
         .value-tds {
-            font-size: 24px;
+            font-size: clamp(22px, 4vw, 24px);
             font-weight: bold;
-            color: var(--purple);
             margin-top: 5px;
+            line-height: 1.15;
         }
+
+        .value { color: var(--primary); }
+        .value-ph { color: var(--check); }
+        .value-tds { color: var(--purple); }
 
         .light-grid {
             display: grid;
@@ -254,9 +279,10 @@
         }
 
         .light-sub-val {
-            font-size: 20px;
+            font-size: clamp(18px, 3.8vw, 20px);
             font-weight: bold;
             color: var(--text);
+            line-height: 1.15;
         }
 
         .light-msg {
@@ -266,11 +292,13 @@
             min-height: 18px;
             padding: 4px;
             border-radius: 4px;
+            word-break: break-word;
         }
 
         .rgb-container {
             display: flex;
             justify-content: space-around;
+            gap: 8px;
             font-size: 16px;
             font-weight: bold;
             margin-top: 5px;
@@ -278,6 +306,7 @@
             padding: 10px;
             border-radius: 8px;
             color: var(--text);
+            flex-wrap: wrap;
         }
 
         .msg-ok { background: #d4edda; color: #155724; }
@@ -296,14 +325,14 @@
         .threshold-grid input,
         .search-box {
             width: 100%;
-            padding: 8px;
+            padding: 10px 12px;
             border: 1px solid var(--input-border);
-            border-radius: 6px;
-            box-sizing: border-box;
+            border-radius: 8px;
             margin-top: 4px;
             background: var(--input-bg);
             color: var(--input-text);
             transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease;
+            font-size: 16px;
         }
 
         .settings-grid input::placeholder,
@@ -331,8 +360,7 @@
         }
 
         .threshold-grid input {
-            padding: 6px;
-            font-size: 13px;
+            font-size: 16px;
         }
 
         .chart-grid {
@@ -361,6 +389,7 @@
         .chart-wrapper {
             position: relative;
             height: 230px;
+            width: 100%;
         }
 
         .chart-status {
@@ -370,6 +399,7 @@
             font-size: 13px;
             background: var(--surface-2);
             color: var(--chart-tick);
+            word-break: break-word;
         }
 
         .chart-view-switch {
@@ -443,6 +473,7 @@
             font-size: 13px;
             border-radius: 8px;
             margin-bottom: 10px;
+            word-break: break-word;
         }
 
         .conn-offline { display: block; background: var(--danger); color: white; }
@@ -454,6 +485,7 @@
             padding: 10px;
             border-radius: 8px;
             margin-top: 10px;
+            word-break: break-word;
         }
 
         .catalog-loading { background: #e9ecef; color: #495057; }
@@ -469,26 +501,26 @@
         #fish-modal {
             display: none;
             position: fixed;
-            top: 0;
-            left: 0;
+            inset: 0;
             width: 100%;
             height: 100%;
             background: var(--modal-overlay);
             z-index: 1000;
+            padding: 20px 12px;
         }
 
         .modal-content {
             background: var(--modal-bg);
             color: var(--text);
-            width: 90%;
-            max-width: 520px;
-            margin: 40px auto;
+            width: min(100%, 520px);
+            margin: 0 auto;
             border-radius: 15px;
-            max-height: 80vh;
+            max-height: min(86vh, 720px);
             display: flex;
             flex-direction: column;
             overflow: hidden;
             border: 1px solid var(--card-border);
+            box-shadow: 0 16px 40px rgba(0,0,0,0.28);
         }
 
         .modal-header,
@@ -497,11 +529,18 @@
             background: var(--modal-header-bg);
         }
 
+        .modal-header h2 {
+            margin: 0;
+            font-size: clamp(20px, 4vw, 24px);
+            line-height: 1.2;
+        }
+
         #fish-list-container {
             padding: 10px 20px;
             overflow-y: auto;
             flex-grow: 1;
             background: var(--modal-bg);
+            -webkit-overflow-scrolling: touch;
         }
 
         .fish-item {
@@ -510,9 +549,15 @@
             padding: 10px 0;
             border-bottom: 1px solid var(--fish-item-border);
             color: var(--text);
+            gap: 8px;
         }
 
-        .fish-item input { margin-right: 15px; }
+        .fish-item input {
+            margin-right: 4px;
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
 
         #result-box {
             margin-top: 15px;
@@ -520,6 +565,7 @@
             border-radius: 8px;
             display: none;
             font-size: 14px;
+            word-break: break-word;
         }
 
         #log {
@@ -529,38 +575,97 @@
             font-family: monospace;
             text-align: center;
             white-space: pre-wrap;
+            word-break: break-word;
         }
 
         @media (max-width: 760px) {
             body { padding: 12px; }
+
+            .topbar {
+                justify-content: center;
+                margin-bottom: 10px;
+            }
+
             .container { max-width: 100%; }
-            .diag-grid { grid-template-columns: repeat(2, 1fr); }
-            .water-grid, .light-grid, .settings-grid, .threshold-grid { grid-template-columns: 1fr; }
+
+            .diag-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .water-grid,
+            .light-grid,
+            .settings-grid,
+            .threshold-grid { grid-template-columns: 1fr; }
+
             .settings-full { grid-column: span 1; }
+
             .chart-wrapper { height: 200px; }
             .chart-view-switch { flex-direction: column; }
 
-            .theme-toggle {
-                top: 10px;
-                right: 10px;
+            .theme-btn {
+                width: 48px;
+                height: 48px;
             }
 
+            .modal-content {
+                width: 100%;
+                max-height: 88vh;
+            }
+
+            .modal-header,
+            .modal-footer,
+            #fish-list-container {
+                padding-left: 14px;
+                padding-right: 14px;
+            }
+        }
+
+        @media (max-width: 460px) {
+            body { padding: 10px; }
+
+            .card { padding: 16px; }
+
+            .diag-grid { gap: 6px; }
+
+            .node-badge {
+                font-size: 10px;
+                min-height: 54px;
+                padding: 8px 4px;
+            }
+
+            .theme-toggle { gap: 6px; }
+
             .theme-btn {
-                width: 40px;
-                height: 40px;
-                font-size: 18px;
+                width: 46px;
+                height: 46px;
+            }
+
+            .chart-view-btn {
+                min-width: 0;
+            }
+
+            .rgb-container {
+                justify-content: center;
             }
         }
     </style>
 </head>
 <body>
-<div class="theme-toggle">
-    <button id="theme-light-btn" class="theme-btn active" type="button" onclick="setTheme('light')" aria-label="Világos mód" title="Világos mód">☀️</button>
-    <button id="theme-dark-btn" class="theme-btn" type="button" onclick="setTheme('dark')" aria-label="Sötét mód" title="Sötét mód">🌙</button>
-</div>
-
 <div class="container">
-    <h1>🌊 AquaControl Pro v1.9</h1>
+    <div class="topbar">
+        <div class="theme-toggle" aria-label="Téma váltás">
+            <button id="theme-light-btn" class="theme-btn active" type="button" onclick="setTheme('light')" aria-label="Világos mód" title="Világos mód">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="12" r="4"></circle>
+                    <path d="M12 2v2.5M12 19.5V22M4.93 4.93l1.77 1.77M17.3 17.3l1.77 1.77M2 12h2.5M19.5 12H22M4.93 19.07 6.7 17.3M17.3 6.7l1.77-1.77"></path>
+                </svg>
+            </button>
+            <button id="theme-dark-btn" class="theme-btn" type="button" onclick="setTheme('dark')" aria-label="Sötét mód" title="Sötét mód">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"></path>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <h1>🌊 AquaControl Pro v2.0</h1>
 
     <div id="conn-banner" class="conn-banner"></div>
 
@@ -668,7 +773,7 @@
 <div id="fish-modal">
     <div class="modal-content">
         <div class="modal-header">
-            <h2 style="margin:0;">🐟 Halak kiválasztása</h2>
+            <h2>🐟 Halak kiválasztása</h2>
             <input type="text" id="fishSearch" class="search-box" placeholder="Keresés..." onkeyup="filterFish()">
         </div>
         <div id="fish-list-container"></div>
@@ -775,21 +880,12 @@
         [tdsChart, phChart, tempChart].forEach(chart => {
             if (!chart) return;
 
-            chart.options.scales.x.grid = {
-                color: getCssVar('--chart-grid')
-            };
-            chart.options.scales.y.grid = {
-                color: getCssVar('--chart-grid')
-            };
+            chart.options.scales.x.grid = { color: getCssVar('--chart-grid') };
+            chart.options.scales.y.grid = { color: getCssVar('--chart-grid') };
             chart.options.scales.x.ticks.color = getCssVar('--chart-tick');
             chart.options.scales.y.ticks.color = getCssVar('--chart-tick');
-            chart.options.scales.x.border = {
-                color: getCssVar('--chart-grid')
-            };
-            chart.options.scales.y.border = {
-                color: getCssVar('--chart-grid')
-            };
-
+            chart.options.scales.x.border = { color: getCssVar('--chart-grid') };
+            chart.options.scales.y.border = { color: getCssVar('--chart-grid') };
             chart.update();
         });
     }
@@ -1116,16 +1212,8 @@
 
     function getChartViewMeta(view) {
         return view === '30d'
-            ? {
-                key: '30d',
-                title: '30 napos',
-                requestMessage: 'CHART_HISTORY_30D'
-            }
-            : {
-                key: '24h',
-                title: '24 órás',
-                requestMessage: 'CHART_HISTORY_24H'
-            };
+            ? { key: '30d', title: '30 napos', requestMessage: 'CHART_HISTORY_30D' }
+            : { key: '24h', title: '24 órás', requestMessage: 'CHART_HISTORY_24H' };
     }
 
     function getChartStore(view) {
@@ -1267,7 +1355,6 @@
 
         if (!fish.name) return null;
         if ([fish.tempMin, fish.tempMax, fish.phMin, fish.phMax].some(v => Number.isNaN(v))) return null;
-
         return fish;
     }
 
@@ -1360,17 +1447,12 @@
         const store = getChartStore(view);
         const idx = store.history.findIndex(item => item.ts === point.ts);
 
-        if (idx >= 0) {
-            store.history[idx] = point;
-        } else {
-            store.history.push(point);
-        }
+        if (idx >= 0) store.history[idx] = point;
+        else store.history.push(point);
 
         store.history = normalizeTrendHistory(store.history);
 
-        if (currentChartView === view) {
-            updateTrendCharts();
-        }
+        if (currentChartView === view) updateTrendCharts();
     }
 
     function getEvalThresholds() {
@@ -1712,24 +1794,14 @@
                             minRotation: 0,
                             color: getCssVar('--chart-tick')
                         },
-                        grid: {
-                            color: getCssVar('--chart-grid')
-                        },
-                        border: {
-                            color: getCssVar('--chart-grid')
-                        }
+                        grid: { color: getCssVar('--chart-grid') },
+                        border: { color: getCssVar('--chart-grid') }
                     },
                     y: {
                         beginAtZero: false,
-                        ticks: {
-                            color: getCssVar('--chart-tick')
-                        },
-                        grid: {
-                            color: getCssVar('--chart-grid')
-                        },
-                        border: {
-                            color: getCssVar('--chart-grid')
-                        }
+                        ticks: { color: getCssVar('--chart-tick') },
+                        grid: { color: getCssVar('--chart-grid') },
+                        border: { color: getCssVar('--chart-grid') }
                     }
                 }
             }
