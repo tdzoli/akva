@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AquaControl Pro Dashboard v2.1</title>
+    <title>AquaControl Pro Dashboard v2.0</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -244,7 +244,7 @@
 
         .water-grid {
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 10px;
             margin-bottom: 15px;
             text-align: center;
@@ -259,8 +259,7 @@
 
         .value,
         .value-ph,
-        .value-tds,
-        .value-turbidity {
+        .value-tds {
             font-size: clamp(22px, 4vw, 24px);
             font-weight: bold;
             margin-top: 5px;
@@ -270,8 +269,6 @@
         .value { color: var(--primary); }
         .value-ph { color: var(--check); }
         .value-tds { color: var(--purple); }
-        .value-turbidity { color: #b7791f; }
-        body.dark-theme .value-turbidity { color: var(--warning); }
 
         .light-grid {
             display: grid;
@@ -310,6 +307,89 @@
             border-radius: 8px;
             color: var(--text);
             flex-wrap: wrap;
+        }
+
+        .light-control-panel {
+            margin-top: 14px;
+            padding: 12px;
+            border-radius: 10px;
+            background: var(--surface-1);
+            border: 1px solid var(--card-border);
+        }
+
+        .light-status-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 110px;
+            padding: 8px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+            background: var(--muted);
+        }
+
+        .status-pill.on { background: var(--success); }
+        .status-pill.off { background: var(--dark); }
+        .status-pill.unknown { background: var(--warning); color: #333; }
+
+        .light-button-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 10px 0 12px 0;
+        }
+
+        .light-timer-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .timer-enable-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+            font-size: 14px;
+            color: var(--text);
+        }
+
+        .timer-enable-row input {
+            width: 20px;
+            height: 20px;
+        }
+
+        .light-timer-grid input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--input-border);
+            border-radius: 8px;
+            margin-top: 4px;
+            background: var(--input-bg);
+            color: var(--input-text);
+            font-size: 16px;
+        }
+
+        .light-result {
+            display: none;
+            margin-top: 10px;
+            font-weight: bold;
+            font-size: 14px;
+            padding: 10px;
+            border-radius: 8px;
+            word-break: break-word;
         }
 
         .msg-ok { background: #d4edda; color: #155724; }
@@ -595,7 +675,9 @@
             .water-grid,
             .light-grid,
             .settings-grid,
-            .threshold-grid { grid-template-columns: 1fr; }
+            .threshold-grid,
+            .light-button-row,
+            .light-timer-grid { grid-template-columns: 1fr; }
 
             .settings-full { grid-column: span 1; }
 
@@ -668,7 +750,7 @@
         </div>
     </div>
 
-    <h1>🌊 AquaControl Pro v2.1</h1>
+    <h1>🌊 AquaControl Pro v2.0</h1>
 
     <div id="conn-banner" class="conn-banner"></div>
 
@@ -689,7 +771,6 @@
             <div><div class="water-label">Hőmérséklet</div><div id="temp-val" class="value">-- °C</div></div>
             <div><div class="water-label">Kémhatás</div><div id="ph-val" class="value-ph">-- pH</div></div>
             <div><div class="water-label">Oldott Anyag</div><div id="tds-val" class="value-tds">-- ppm</div></div>
-            <div><div class="water-label">Zavarosság</div><div id="turbidity-val" class="value-turbidity">-- %</div></div>
         </div>
         <div id="ideal-temp-val" style="color: var(--success); font-weight: bold; margin-top: 10px; font-size: 14px;">Aktív célérték: Nincs adat</div>
         <div id="catalog-status" class="catalog-status catalog-warning">⚠️ Haladatbázis még nincs betöltve.</div>
@@ -720,6 +801,35 @@
         </div>
         <div id="rgb-msg" class="light-msg" style="margin-top: 8px; text-align: center;">Nincs adat</div>
 
+        <div class="light-control-panel">
+            <div class="light-status-row">
+                <div>
+                    <small style="text-transform:uppercase; font-weight:bold;">Lámpa állapota</small>
+                    <div id="light-status-text" style="font-size:13px; margin-top:4px; color:var(--muted);">Nincs visszajelzés</div>
+                </div>
+                <div id="light-state-badge" class="status-pill unknown">ISMERETLEN</div>
+            </div>
+
+            <div class="light-button-row">
+                <button class="btn-on" onclick="setLightPower(true)">💡 Lámpa FEL</button>
+                <button class="btn-off" onclick="setLightPower(false)">🌑 Lámpa LE</button>
+            </div>
+
+            <div class="sd-dependent">
+                <small style="text-transform:uppercase; font-weight:bold;">Lámpa időzítő</small>
+                <label class="timer-enable-row">
+                    <input type="checkbox" id="light-timer-enabled">
+                    <span>Időzítő engedélyezése</span>
+                </label>
+                <div class="light-timer-grid">
+                    <div><small>Bekapcsolás időpontja</small><input type="time" id="light-on-time" value="05:00"></div>
+                    <div><small>Kikapcsolás időpontja</small><input type="time" id="light-off-time" value="22:00"></div>
+                </div>
+                <button id="btn-save-light-timer" class="btn-action sd-dependent" onclick="saveLightTimer()" disabled>💾 Lámpa időzítő mentése SD-re</button>
+            </div>
+            <div id="light-control-result" class="light-result"></div>
+        </div>
+
         <div class="threshold-grid">
             <div><small>Ideális Lux Min</small><input type="number" id="eval-lux-min" value="100" onchange="reEvaluateLight()"></div>
             <div><small>Ideális Lux Max</small><input type="number" id="eval-lux-max" value="800" onchange="reEvaluateLight()"></div>
@@ -738,10 +848,6 @@
             <div class="chart-box">
                 <div class="chart-title">Oldott anyag (TDS)</div>
                 <div class="chart-wrapper"><canvas id="tds-chart"></canvas></div>
-            </div>
-            <div class="chart-box">
-                <div class="chart-title">Zavarosság (%)</div>
-                <div class="chart-wrapper"><canvas id="turbidity-chart"></canvas></div>
             </div>
             <div class="chart-box">
                 <div class="chart-title">pH változás</div>
@@ -770,7 +876,6 @@
             <div><small style="font-weight:bold;">TDS Max (ppm)</small><input type="number" id="tds-max"></div>
             <div><small style="font-weight:bold;">Lux Min</small><input type="number" id="lux-min"></div>
             <div><small style="font-weight:bold;">Lux Max</small><input type="number" id="lux-max"></div>
-            <div><small style="font-weight:bold;">Zavarosság Max (%)</small><input type="number" id="turbidity-max" min="0" max="100" step="1" value="70"></div>
         </div>
         <button id="btn-save-settings" class="btn-action sd-dependent" onclick="saveAllSettings()" disabled>💾 Határértékek mentése SD-re</button>
         <div id="settings-result" style="display:none; margin-top:10px; font-weight:bold; font-size:14px; padding:10px; border-radius:8px;"></div>
@@ -810,8 +915,11 @@
     let lastLightData = { lux: null, kelvin: null, r: 0, g: 0, b: 0 };
     let sysSettings = {
         setpoint: 25.0, tMin: 20.0, tMax: 28.0, phMin: 6.0, phMax: 8.0,
-        tdsMin: 0, tdsMax: 1000, luxMin: 0, luxMax: 10000, turbidityMax: 70, chatId: "0"
+        tdsMin: 0, tdsMax: 1000, luxMin: 0, luxMax: 10000, chatId: "0",
+        lightTimerEnabled: false, lightOnHour: 5, lightOnMinute: 0, lightOffHour: 22, lightOffMinute: 0
     };
+
+    let lightRelayState = 'UNKNOWN';
 
     let fishCatalog = [];
     let fishCatalogBuffer = [];
@@ -836,7 +944,6 @@
     let tempChart = null;
     let phChart = null;
     let tdsChart = null;
-    let turbidityChart = null;
 
     const host = 'wss://4769a5772b894e1ea634b4eff4b1c6cd.s1.eu.hivemq.cloud:8884/mqtt';
     const client = mqtt.connect(host, {
@@ -887,7 +994,7 @@
     }
 
     function updateChartTheme() {
-        [tdsChart, turbidityChart, phChart, tempChart].forEach(chart => {
+        [tdsChart, phChart, tempChart].forEach(chart => {
             if (!chart) return;
 
             chart.options.scales.x.grid = { color: getCssVar('--chart-grid') };
@@ -985,16 +1092,19 @@
         const sdDependentElements = document.querySelectorAll('.sd-dependent');
         const applyBtn = document.getElementById('btn-set-temp');
         const saveSettingsBtn = document.getElementById('btn-save-settings');
+        const saveLightTimerBtn = document.getElementById('btn-save-light-timer');
 
         if (isOk) {
             sdDependentElements.forEach(el => el.classList.remove('sd-disabled'));
             saveSettingsBtn.disabled = false;
+            if (saveLightTimerBtn) saveLightTimerBtn.disabled = false;
 
             if (!fishCatalog.length && !fishCatalogLoading) requestFishCatalog(true);
             if (!getCurrentChartHistory().length && !isCurrentChartHistoryLoading()) requestChartHistory(true);
         } else {
             sdDependentElements.forEach(el => el.classList.add('sd-disabled'));
             saveSettingsBtn.disabled = true;
+            if (saveLightTimerBtn) saveLightTimerBtn.disabled = true;
             applyBtn.disabled = true;
 
             fishCatalogLoading = false;
@@ -1088,15 +1198,15 @@
                 document.getElementById('tds-max').value = parts[6];
                 document.getElementById('lux-min').value = parts[7];
                 document.getElementById('lux-max').value = parts[8];
+                document.getElementById('chat-id').value = parts[9] === '0' ? '' : parts[9];
 
-                if (parts.length >= 11) {
-                    sysSettings.turbidityMax = parseFloat(parts[9]) || 70;
-                    document.getElementById('turbidity-max').value = parts[9];
-                    document.getElementById('chat-id').value = parts[10] === '0' ? '' : parts[10];
-                } else {
-                    sysSettings.turbidityMax = 70;
-                    document.getElementById('turbidity-max').value = 70;
-                    document.getElementById('chat-id').value = parts[9] === '0' ? '' : parts[9];
+                if (parts.length >= 15) {
+                    sysSettings.lightTimerEnabled = parts[10] === '1';
+                    sysSettings.lightOnHour = parseInt(parts[11], 10) || 0;
+                    sysSettings.lightOnMinute = parseInt(parts[12], 10) || 0;
+                    sysSettings.lightOffHour = parseInt(parts[13], 10) || 0;
+                    sysSettings.lightOffMinute = parseInt(parts[14], 10) || 0;
+                    applyLightTimerFields();
                 }
 
                 if (tempSaveTimer) {
@@ -1114,7 +1224,8 @@
                     sRes.style.display = 'block';
                     sRes.style.background = 'var(--success)';
                     sRes.style.color = 'white';
-                    sRes.innerHTML = '✅ Határértékek sikeresen elmentve az SD kártyára!';
+                    sRes.innerHTML = '✅ Beállítások sikeresen elmentve az SD kártyára!';
+                    showLightResult('✅ Lámpa időzítő mentve az SD kártyára.', 'ok');
                     if (isSdCardOk) document.getElementById('btn-save-settings').disabled = false;
                 }
             }
@@ -1123,6 +1234,9 @@
         if (topic === 'aquarium/fish/catalog') handleFishCatalogMessage(msg);
         if (topic === 'aquarium/chart/history/24h') handleChartHistoryMessage('24h', msg);
         if (topic === 'aquarium/chart/history/30d') handleChartHistoryMessage('30d', msg);
+        if (topic === 'aquarium/status/light') updateLightStatus(msg);
+        if (topic === 'aquarium/light/state') handleLightStateMessage(msg);
+        if (topic === 'aquarium/light/event') showLightResult(msg, 'ok');
 
         if (topic === 'aquarium/chart/point/24h') {
             try {
@@ -1151,7 +1265,6 @@
                 if (data.temp !== undefined) document.getElementById('temp-val').innerText = data.temp + ' °C';
                 if (data.ph !== undefined) document.getElementById('ph-val').innerText = data.ph + ' pH';
                 if (data.tds !== undefined) document.getElementById('tds-val').innerText = data.tds + ' ppm';
-                if (data.turbidity !== undefined) document.getElementById('turbidity-val').innerText = Number(data.turbidity).toFixed(1) + ' %';
 
                 if (data.lux !== undefined && data.kelvin !== undefined) {
                     let r = data.r_pct !== undefined ? data.r_pct : 0;
@@ -1386,12 +1499,10 @@
             ts: parts[0],
             temp: parseFloat(parts[1].replace(',', '.')),
             ph: parseFloat(parts[2].replace(',', '.')),
-            tds: parseFloat(parts[3].replace(',', '.')),
-            turbidity: parts.length >= 5 ? parseFloat(parts[4].replace(',', '.')) : null
+            tds: parseFloat(parts[3].replace(',', '.'))
         };
 
         if (!point.ts || [point.temp, point.ph, point.tds].some(v => Number.isNaN(v))) return null;
-        if (point.turbidity !== null && Number.isNaN(point.turbidity)) point.turbidity = null;
         return point;
     }
 
@@ -1638,11 +1749,130 @@
         applyBtn.disabled = !isSdCardOk;
     }
 
+    function pad2(value) {
+        return String(value).padStart(2, '0');
+    }
+
+    function parseTimeToParts(value, fallbackHour, fallbackMinute) {
+        const match = String(value || '').match(/^(\d{1,2}):(\d{2})$/);
+        if (!match) return { hour: fallbackHour, minute: fallbackMinute };
+
+        let hour = parseInt(match[1], 10);
+        let minute = parseInt(match[2], 10);
+
+        if (Number.isNaN(hour) || hour < 0 || hour > 23) hour = fallbackHour;
+        if (Number.isNaN(minute) || minute < 0 || minute > 59) minute = fallbackMinute;
+
+        return { hour, minute };
+    }
+
+    function applyLightTimerFields() {
+        const enabled = document.getElementById('light-timer-enabled');
+        const onInput = document.getElementById('light-on-time');
+        const offInput = document.getElementById('light-off-time');
+
+        if (enabled) enabled.checked = !!sysSettings.lightTimerEnabled;
+        if (onInput) onInput.value = `${pad2(sysSettings.lightOnHour)}:${pad2(sysSettings.lightOnMinute)}`;
+        if (offInput) offInput.value = `${pad2(sysSettings.lightOffHour)}:${pad2(sysSettings.lightOffMinute)}`;
+    }
+
+    function readLightTimerFields() {
+        const on = parseTimeToParts(document.getElementById('light-on-time').value, 5, 0);
+        const off = parseTimeToParts(document.getElementById('light-off-time').value, 22, 0);
+
+        sysSettings.lightTimerEnabled = document.getElementById('light-timer-enabled').checked;
+        sysSettings.lightOnHour = on.hour;
+        sysSettings.lightOnMinute = on.minute;
+        sysSettings.lightOffHour = off.hour;
+        sysSettings.lightOffMinute = off.minute;
+    }
+
     function buildSettingsString() {
         let cid = document.getElementById('chat-id').value.trim();
         if (cid === '') cid = '0';
+        readLightTimerFields();
 
-        return `${sysSettings.setpoint};${document.getElementById('t-min').value || 0};${document.getElementById('t-max').value || 0};${document.getElementById('ph-min').value || 0};${document.getElementById('ph-max').value || 0};${document.getElementById('tds-min').value || 0};${document.getElementById('tds-max').value || 0};${document.getElementById('lux-min').value || 0};${document.getElementById('lux-max').value || 0};${document.getElementById('turbidity-max').value || 70};${cid}`;
+        return `${sysSettings.setpoint};${document.getElementById('t-min').value || 0};${document.getElementById('t-max').value || 0};${document.getElementById('ph-min').value || 0};${document.getElementById('ph-max').value || 0};${document.getElementById('tds-min').value || 0};${document.getElementById('tds-max').value || 0};${document.getElementById('lux-min').value || 0};${document.getElementById('lux-max').value || 0};${cid};${sysSettings.lightTimerEnabled ? 1 : 0};${sysSettings.lightOnHour};${sysSettings.lightOnMinute};${sysSettings.lightOffHour};${sysSettings.lightOffMinute}`;
+    }
+
+    function setLightPower(turnOn) {
+        send('aquarium/light/command', turnOn ? 'ON' : 'OFF');
+        showLightResult(`⏳ Lámpa ${turnOn ? 'FEL' : 'LE'} kapcsolási parancs elküldve. A Telegram értesítést a fényérzékelős visszaigazolás után küldi a rendszer.`, 'warn');
+    }
+
+    function saveLightTimer() {
+        if (!isSdCardOk) {
+            showLightResult('⚠️ A lámpa időzítő nem menthető: nincs SD kártya.', 'error');
+            return;
+        }
+
+        readLightTimerFields();
+
+        const onText = `${pad2(sysSettings.lightOnHour)}:${pad2(sysSettings.lightOnMinute)}`;
+        const offText = `${pad2(sysSettings.lightOffHour)}:${pad2(sysSettings.lightOffMinute)}`;
+        if (onText === offText) {
+            showLightResult('⚠️ A bekapcsolási és kikapcsolási időpont nem lehet azonos.', 'error');
+            return;
+        }
+
+        showLightResult('⏳ Lámpa időzítő mentése folyamatban...', 'warn');
+        saveAllSettings();
+    }
+
+    function showLightResult(text, type = 'ok') {
+        const el = document.getElementById('light-control-result');
+        if (!el) return;
+
+        el.style.display = 'block';
+        el.style.background = type === 'error' ? 'var(--danger)' : (type === 'warn' ? 'var(--warning)' : 'var(--success)');
+        el.style.color = type === 'warn' ? '#333' : 'white';
+        el.textContent = text;
+    }
+
+    function updateLightStatus(state) {
+        const normalized = String(state || 'UNKNOWN').trim().toUpperCase();
+        lightRelayState = normalized;
+
+        const badge = document.getElementById('light-state-badge');
+        const text = document.getElementById('light-status-text');
+        if (!badge || !text) return;
+
+        if (normalized === 'ON' || normalized === '1') {
+            badge.className = 'status-pill on';
+            badge.textContent = 'FELKAPCSOLVA';
+            text.textContent = 'Node B relévisszajelzés: lámpa felkapcsolva';
+        } else if (normalized === 'OFF' || normalized === '0') {
+            badge.className = 'status-pill off';
+            badge.textContent = 'LEKAPCSOLVA';
+            text.textContent = 'Node B relévisszajelzés: lámpa lekapcsolva';
+        } else {
+            badge.className = 'status-pill unknown';
+            badge.textContent = 'ISMERETLEN';
+            text.textContent = 'Nincs relévisszajelzés a beavatkozó mikrokontrollertől';
+        }
+    }
+
+    function handleLightStateMessage(msg) {
+        try {
+            const data = JSON.parse(msg);
+            if (data.relay) updateLightStatus(data.relay);
+
+            if (typeof data.timerEnabled === 'boolean') sysSettings.lightTimerEnabled = data.timerEnabled;
+            if (data.on) {
+                const on = parseTimeToParts(data.on, 5, 0);
+                sysSettings.lightOnHour = on.hour;
+                sysSettings.lightOnMinute = on.minute;
+            }
+            if (data.off) {
+                const off = parseTimeToParts(data.off, 22, 0);
+                sysSettings.lightOffHour = off.hour;
+                sysSettings.lightOffMinute = off.minute;
+            }
+
+            applyLightTimerFields();
+        } catch (e) {
+            console.error('Lámpa állapot parse hiba:', e);
+        }
     }
 
     function saveAllSettings() {
@@ -1832,7 +2062,6 @@
 
     function ensureTrendCharts() {
         if (!tdsChart) tdsChart = createTrendChart('tds-chart', 'TDS (ppm)', '#6f42c1');
-        if (!turbidityChart) turbidityChart = createTrendChart('turbidity-chart', 'Zavarosság (%)', '#b7791f');
         if (!phChart) phChart = createTrendChart('ph-chart', 'pH', '#17a2b8');
         if (!tempChart) tempChart = createTrendChart('temp-chart', 'Hőmérséklet (°C)', '#007bff');
     }
@@ -1846,11 +2075,10 @@
 
         const labels = activeHistory.map(item => formatTrendLabel(item.ts));
         const tdsValues = activeHistory.map(item => Number(item.tds));
-        const turbidityValues = activeHistory.map(item => item.turbidity === null || item.turbidity === undefined ? null : Number(item.turbidity));
         const phValues = activeHistory.map(item => Number(item.ph));
         const tempValues = activeHistory.map(item => Number(item.temp));
 
-        [tdsChart, turbidityChart, phChart, tempChart].forEach(chart => {
+        [tdsChart, phChart, tempChart].forEach(chart => {
             chart.options.scales.x.ticks.maxTicksLimit = isMonthly ? 8 : 12;
             chart.options.scales.x.ticks.color = getCssVar('--chart-tick');
             chart.options.scales.y.ticks.color = getCssVar('--chart-tick');
@@ -1863,10 +2091,6 @@
         tdsChart.data.labels = labels;
         tdsChart.data.datasets[0].data = tdsValues;
         tdsChart.update();
-
-        turbidityChart.data.labels = labels;
-        turbidityChart.data.datasets[0].data = turbidityValues;
-        turbidityChart.update();
 
         phChart.data.labels = labels;
         phChart.data.datasets[0].data = phValues;
@@ -1898,6 +2122,8 @@
         initTheme();
         ensureTrendCharts();
         setChartView('24h');
+        applyLightTimerFields();
+        updateLightStatus('UNKNOWN');
     });
 </script>
 </body>
