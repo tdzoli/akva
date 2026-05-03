@@ -941,6 +941,7 @@
     let chartHistory30dBuffer = [];
     let chartHistory30dLoading = false;
     let chartHistory30dLastError = '';
+    let pendingSettingsSaveKind = null;
 
     let tempChart = null;
     let phChart = null;
@@ -1225,9 +1226,20 @@
                     sRes.style.display = 'block';
                     sRes.style.background = 'var(--success)';
                     sRes.style.color = 'white';
-                    sRes.innerHTML = '✅ Beállítások sikeresen elmentve az SD kártyára!';
-                    showLightResult('✅ Lámpa időzítő mentve az SD kártyára.', 'ok');
+
+                    if (pendingSettingsSaveKind === 'lightTimer') {
+                        const timerState = sysSettings.lightTimerEnabled ? 'bekapcsolva' : 'kikapcsolva';
+                        const onText = `${pad2(sysSettings.lightOnHour)}:${pad2(sysSettings.lightOnMinute)}`;
+                        const offText = `${pad2(sysSettings.lightOffHour)}:${pad2(sysSettings.lightOffMinute)}`;
+                        sRes.innerHTML = '✅ Beállítások sikeresen elmentve az SD kártyára!';
+                        showLightResult(`✅ Lámpa időzítő mentve: ${timerState}. Bekapcsolás: ${onText}, kikapcsolás: ${offText}.`, 'ok');
+                    } else {
+                        sRes.innerHTML = '✅ Beállítások sikeresen elmentve az SD kártyára!';
+                    }
+
+                    pendingSettingsSaveKind = null;
                     if (isSdCardOk) document.getElementById('btn-save-settings').disabled = false;
+                    if (isSdCardOk) document.getElementById('btn-save-light-timer').disabled = false;
                 }
             }
         }
@@ -1816,8 +1828,25 @@
             return;
         }
 
+        const btn = document.getElementById('btn-save-light-timer');
+        if (btn) btn.disabled = true;
+
         showLightResult('⏳ Lámpa időzítő mentése folyamatban...', 'warn');
-        saveAllSettings();
+        pendingSettingsSaveKind = 'lightTimer';
+        send('aquarium/light/timer/set', buildSettingsString());
+
+        settingsSaveTimer = setTimeout(() => {
+            showLightResult('⚠️ HIBA: A lámpa időzítő mentése sikertelen! A Gerinc nem válaszol, vagy nem tudta írni a setup.csv fájlt.', 'error');
+            const sRes = document.getElementById('settings-result');
+            sRes.style.display = 'block';
+            sRes.style.background = 'var(--danger)';
+            sRes.style.color = 'white';
+            sRes.innerHTML = '⚠️ HIBA: A mentés sikertelen! A Gerinc megtagadta a fájlírást, vagy nem válaszol.';
+            if (isSdCardOk && btn) btn.disabled = false;
+            if (isSdCardOk) document.getElementById('btn-save-settings').disabled = false;
+            settingsSaveTimer = null;
+            pendingSettingsSaveKind = null;
+        }, 5000);
     }
 
     function showLightResult(text, type = 'ok') {
@@ -1882,6 +1911,7 @@
         const btn = document.getElementById('btn-save-settings');
         const res = document.getElementById('settings-result');
 
+        pendingSettingsSaveKind = 'general';
         btn.disabled = true;
         res.style.display = 'block';
         res.style.background = 'var(--warning)';
@@ -1896,6 +1926,7 @@
             res.innerHTML = '⚠️ HIBA: A mentés sikertelen! A Gerinc megtagadta a fájlírást, vagy nem válaszol.';
             if (isSdCardOk) btn.disabled = false;
             settingsSaveTimer = null;
+            pendingSettingsSaveKind = null;
         }, 5000);
     }
 
