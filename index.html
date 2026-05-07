@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AquaControl Pro Dashboard v2.1</title>
+    <title>AquaControl Pro Dashboard v2.0</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -244,7 +244,7 @@
 
         .water-grid {
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 10px;
             margin-bottom: 15px;
             text-align: center;
@@ -259,8 +259,7 @@
 
         .value,
         .value-ph,
-        .value-tds,
-        .value-turbidity {
+        .value-tds {
             font-size: clamp(22px, 4vw, 24px);
             font-weight: bold;
             margin-top: 5px;
@@ -270,7 +269,6 @@
         .value { color: var(--primary); }
         .value-ph { color: var(--check); }
         .value-tds { color: var(--purple); }
-        .value-turbidity { color: var(--warning); }
 
         .light-grid {
             display: grid;
@@ -752,7 +750,7 @@
         </div>
     </div>
 
-    <h1>🌊 AquaControl Pro v2.1</h1>
+    <h1>🌊 AquaControl Pro v2.0</h1>
 
     <div id="conn-banner" class="conn-banner"></div>
 
@@ -773,7 +771,6 @@
             <div><div class="water-label">Hőmérséklet</div><div id="temp-val" class="value">-- °C</div></div>
             <div><div class="water-label">Kémhatás</div><div id="ph-val" class="value-ph">-- pH</div></div>
             <div><div class="water-label">Oldott Anyag</div><div id="tds-val" class="value-tds">-- ppm</div></div>
-            <div><div class="water-label">Zavarosság</div><div id="turbidity-val" class="value-turbidity">-- %</div></div>
         </div>
         <div id="ideal-temp-val" style="color: var(--success); font-weight: bold; margin-top: 10px; font-size: 14px;">Aktív célérték: Nincs adat</div>
         <div id="catalog-status" class="catalog-status catalog-warning">⚠️ Haladatbázis még nincs betöltve.</div>
@@ -861,10 +858,6 @@
                 <div class="chart-title">Hőmérséklet változás</div>
                 <div class="chart-wrapper"><canvas id="temp-chart"></canvas></div>
             </div>
-            <div class="chart-box">
-                <div class="chart-title">Zavarosság változás (%)</div>
-                <div class="chart-wrapper"><canvas id="turbidity-chart"></canvas></div>
-            </div>
         </div>
         <div id="chart-status" class="chart-status">⏳ 24 órás trendadatok betöltése folyamatban...</div>
     </div>
@@ -884,7 +877,6 @@
             <div><small style="font-weight:bold;">TDS Max (ppm)</small><input type="number" id="tds-max"></div>
             <div><small style="font-weight:bold;">Lux Min</small><input type="number" id="lux-min"></div>
             <div><small style="font-weight:bold;">Lux Max</small><input type="number" id="lux-max"></div>
-            <div class="settings-full"><small style="font-weight:bold;">Zavarosság Max (%)</small><input type="number" id="turbidity-max" min="0" max="100" step="0.1" value="70"></div>
         </div>
         <button id="btn-save-settings" class="btn-action sd-dependent" onclick="saveAllSettings()" disabled>💾 Határértékek mentése SD-re</button>
         <div id="settings-result" style="display:none; margin-top:10px; font-weight:bold; font-size:14px; padding:10px; border-radius:8px;"></div>
@@ -924,7 +916,7 @@
     let lastLightData = { lux: null, kelvin: null, r: 0, g: 0, b: 0 };
     let sysSettings = {
         setpoint: 25.0, tMin: 20.0, tMax: 28.0, phMin: 6.0, phMax: 8.0,
-        tdsMin: 0, tdsMax: 1000, luxMin: 0, luxMax: 10000, turbidityMax: 70.0, chatId: "0",
+        tdsMin: 0, tdsMax: 1000, luxMin: 0, luxMax: 10000, chatId: "0",
         lightTimerEnabled: false, lightOnHour: 5, lightOnMinute: 0, lightOffHour: 22, lightOffMinute: 0
     };
 
@@ -954,7 +946,6 @@
     let tempChart = null;
     let phChart = null;
     let tdsChart = null;
-    let turbidityChart = null;
 
     const host = 'wss://4769a5772b894e1ea634b4eff4b1c6cd.s1.eu.hivemq.cloud:8884/mqtt';
     const client = mqtt.connect(host, {
@@ -1005,7 +996,7 @@
     }
 
     function updateChartTheme() {
-        [tdsChart, phChart, tempChart, turbidityChart].forEach(chart => {
+        [tdsChart, phChart, tempChart].forEach(chart => {
             if (!chart) return;
 
             chart.options.scales.x.grid = { color: getCssVar('--chart-grid') };
@@ -1211,14 +1202,6 @@
                 document.getElementById('lux-max').value = parts[8];
                 document.getElementById('chat-id').value = parts[9] === '0' ? '' : parts[9];
 
-                if (parts.length >= 16) {
-                    sysSettings.turbidityMax = parseFloat(parts[15]) || 70.0;
-                    document.getElementById('turbidity-max').value = sysSettings.turbidityMax;
-                } else {
-                    sysSettings.turbidityMax = 70.0;
-                    document.getElementById('turbidity-max').value = 70;
-                }
-
                 if (parts.length >= 15) {
                     sysSettings.lightTimerEnabled = parts[10] === '1';
                     sysSettings.lightOnHour = parseInt(parts[11], 10) || 0;
@@ -1295,7 +1278,6 @@
                 if (data.temp !== undefined) document.getElementById('temp-val').innerText = data.temp + ' °C';
                 if (data.ph !== undefined) document.getElementById('ph-val').innerText = data.ph + ' pH';
                 if (data.tds !== undefined) document.getElementById('tds-val').innerText = data.tds + ' ppm';
-                if (data.turbidity !== undefined) document.getElementById('turbidity-val').innerText = Number(data.turbidity).toFixed(1) + ' %';
 
                 if (data.lux !== undefined && data.kelvin !== undefined) {
                     let r = data.r_pct !== undefined ? data.r_pct : 0;
@@ -1524,17 +1506,16 @@
 
     function parseTrendHistoryLine(line) {
         const parts = line.split(';').map(p => p.trim());
-        if (parts.length < 5) return null;
+        if (parts.length < 4) return null;
 
         const point = {
             ts: parts[0],
             temp: parseFloat(parts[1].replace(',', '.')),
             ph: parseFloat(parts[2].replace(',', '.')),
-            tds: parseFloat(parts[3].replace(',', '.')),
-            turbidity: parseFloat(parts[4].replace(',', '.'))
+            tds: parseFloat(parts[3].replace(',', '.'))
         };
 
-        if (!point.ts || [point.temp, point.ph, point.tds, point.turbidity].some(v => Number.isNaN(v))) return null;
+        if (!point.ts || [point.temp, point.ph, point.tds].some(v => Number.isNaN(v))) return null;
         return point;
     }
 
@@ -1824,8 +1805,7 @@
         if (cid === '') cid = '0';
         readLightTimerFields();
 
-        const turbMax = document.getElementById('turbidity-max').value || 70;
-        return `${sysSettings.setpoint};${document.getElementById('t-min').value || 0};${document.getElementById('t-max').value || 0};${document.getElementById('ph-min').value || 0};${document.getElementById('ph-max').value || 0};${document.getElementById('tds-min').value || 0};${document.getElementById('tds-max').value || 0};${document.getElementById('lux-min').value || 0};${document.getElementById('lux-max').value || 0};${cid};${sysSettings.lightTimerEnabled ? 1 : 0};${sysSettings.lightOnHour};${sysSettings.lightOnMinute};${sysSettings.lightOffHour};${sysSettings.lightOffMinute};${turbMax}`;
+        return `${sysSettings.setpoint};${document.getElementById('t-min').value || 0};${document.getElementById('t-max').value || 0};${document.getElementById('ph-min').value || 0};${document.getElementById('ph-max').value || 0};${document.getElementById('tds-min').value || 0};${document.getElementById('tds-max').value || 0};${document.getElementById('lux-min').value || 0};${document.getElementById('lux-max').value || 0};${cid};${sysSettings.lightTimerEnabled ? 1 : 0};${sysSettings.lightOnHour};${sysSettings.lightOnMinute};${sysSettings.lightOffHour};${sysSettings.lightOffMinute}`;
     }
 
     function setLightPower(turnOn) {
@@ -2053,6 +2033,17 @@
         closeModal();
     }
 
+    function roundChartValue(value) {
+        const number = Number(value);
+        return Number.isFinite(number) ? Math.round(number * 10) / 10 : value;
+    }
+
+    function formatChartValue(value) {
+        const number = Number(value);
+        if (!Number.isFinite(number)) return value;
+        return Number.isInteger(number) ? String(number) : number.toFixed(1);
+    }
+
     function createTrendChart(canvasId, label, color) {
         const ctx = document.getElementById(canvasId).getContext('2d');
 
@@ -2087,7 +2078,14 @@
                     mode: 'index'
                 },
                 plugins: {
-                    legend: { display: false }
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.dataset.label + ': ' + formatChartValue(context.parsed.y);
+                            }
+                        }
+                    }
                 },
                 scales: {
                     x: {
@@ -2103,7 +2101,12 @@
                     },
                     y: {
                         beginAtZero: false,
-                        ticks: { color: getCssVar('--chart-tick') },
+                        ticks: {
+                            color: getCssVar('--chart-tick'),
+                            callback: function(value) {
+                                return formatChartValue(value);
+                            }
+                        },
                         grid: { color: getCssVar('--chart-grid') },
                         border: { color: getCssVar('--chart-grid') }
                     }
@@ -2116,7 +2119,6 @@
         if (!tdsChart) tdsChart = createTrendChart('tds-chart', 'TDS (ppm)', '#6f42c1');
         if (!phChart) phChart = createTrendChart('ph-chart', 'pH', '#17a2b8');
         if (!tempChart) tempChart = createTrendChart('temp-chart', 'Hőmérséklet (°C)', '#007bff');
-        if (!turbidityChart) turbidityChart = createTrendChart('turbidity-chart', 'Zavarosság (%)', '#ffc107');
     }
 
     function updateTrendCharts() {
@@ -2127,12 +2129,11 @@
         const isMonthly = currentChartView === '30d';
 
         const labels = activeHistory.map(item => formatTrendLabel(item.ts));
-        const tdsValues = activeHistory.map(item => Number(item.tds));
-        const phValues = activeHistory.map(item => Number(item.ph));
-        const tempValues = activeHistory.map(item => Number(item.temp));
-        const turbidityValues = activeHistory.map(item => Number(item.turbidity));
+        const tdsValues = activeHistory.map(item => roundChartValue(item.tds));
+        const phValues = activeHistory.map(item => roundChartValue(item.ph));
+        const tempValues = activeHistory.map(item => roundChartValue(item.temp));
 
-        [tdsChart, phChart, tempChart, turbidityChart].forEach(chart => {
+        [tdsChart, phChart, tempChart].forEach(chart => {
             chart.options.scales.x.ticks.maxTicksLimit = isMonthly ? 8 : 12;
             chart.options.scales.x.ticks.color = getCssVar('--chart-tick');
             chart.options.scales.y.ticks.color = getCssVar('--chart-tick');
@@ -2153,10 +2154,6 @@
         tempChart.data.labels = labels;
         tempChart.data.datasets[0].data = tempValues;
         tempChart.update();
-
-        turbidityChart.data.labels = labels;
-        turbidityChart.data.datasets[0].data = turbidityValues;
-        turbidityChart.update();
 
         if (!activeHistory.length) {
             const text = activeError
