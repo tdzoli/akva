@@ -942,6 +942,7 @@
     let chartHistory30dLoading = false;
     let chartHistory30dLastError = '';
     let pendingSettingsSaveKind = null;
+    let lightTimerDirty = false;
 
     let tempChart = null;
     let phChart = null;
@@ -1228,6 +1229,9 @@
                     sRes.style.color = 'white';
 
                     if (pendingSettingsSaveKind === 'lightTimer') {
+                        lightTimerDirty = false;
+                        applyLightTimerFields(true);
+
                         const timerState = sysSettings.lightTimerEnabled ? 'bekapcsolva' : 'kikapcsolva';
                         const onText = `${pad2(sysSettings.lightOnHour)}:${pad2(sysSettings.lightOnMinute)}`;
                         const offText = `${pad2(sysSettings.lightOffHour)}:${pad2(sysSettings.lightOffMinute)}`;
@@ -1779,10 +1783,21 @@
         return { hour, minute };
     }
 
-    function applyLightTimerFields() {
+    function applyLightTimerFields(force = false) {
         const enabled = document.getElementById('light-timer-enabled');
         const onInput = document.getElementById('light-on-time');
         const offInput = document.getElementById('light-off-time');
+
+        const active = document.activeElement;
+        const userIsEditing =
+            active === enabled ||
+            active === onInput ||
+            active === offInput ||
+            lightTimerDirty;
+
+        // Ha a felhasználó éppen szerkeszti az időzítőt,
+        // az MQTT állapotfrissítés ne írja vissza a régi mentett értékeket.
+        if (userIsEditing && !force) return;
 
         if (enabled) enabled.checked = !!sysSettings.lightTimerEnabled;
         if (onInput) onInput.value = `${pad2(sysSettings.lightOnHour)}:${pad2(sysSettings.lightOnMinute)}`;
@@ -1844,6 +1859,7 @@
             sRes.innerHTML = '⚠️ HIBA: A mentés sikertelen! A Gerinc megtagadta a fájlírást, vagy nem válaszol.';
             if (isSdCardOk && btn) btn.disabled = false;
             if (isSdCardOk) document.getElementById('btn-save-settings').disabled = false;
+            lightTimerDirty = false;
             settingsSaveTimer = null;
             pendingSettingsSaveKind = null;
         }, 5000);
@@ -2177,8 +2193,21 @@
         initTheme();
         ensureTrendCharts();
         setChartView('24h');
-        applyLightTimerFields();
+        applyLightTimerFields(true);
         updateLightStatus('UNKNOWN');
+
+        ['light-timer-enabled', 'light-on-time', 'light-off-time'].forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+
+            el.addEventListener('input', () => {
+                lightTimerDirty = true;
+            });
+
+            el.addEventListener('change', () => {
+                lightTimerDirty = true;
+            });
+        });
     });
 </script>
 </body>
