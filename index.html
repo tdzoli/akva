@@ -1192,7 +1192,7 @@
 
             if (parts.length >= 10) {
                 sysSettings.setpoint = parseFloat(parts[0]);
-                document.getElementById('ideal-temp-val').innerText = `Aktív célérték (Gerinc memóriája): ${sysSettings.setpoint} °C`;
+                document.getElementById('ideal-temp-val').innerText = `Aktív célérték (SD kártyára mentett érték): ${sysSettings.setpoint} °C`;
                 document.getElementById('t-min').value = parts[1];
                 document.getElementById('t-max').value = parts[2];
                 document.getElementById('ph-min').value = parts[3];
